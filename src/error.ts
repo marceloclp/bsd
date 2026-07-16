@@ -1,6 +1,6 @@
 import { joinPath } from "./common";
 
-export class EkeError extends Error {
+export class ZedError extends Error {
     override readonly name = "EkeError";
 
     constructor(

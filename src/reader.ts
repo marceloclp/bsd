@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { EkeError } from "./error";
+import { ZedError } from "./error";
 
 /** Integer widths supported by Eke's number-backed readers. */
 type IntegerBits = 8 | 16 | 24 | 32;
@@ -8,7 +8,7 @@ type BigIntegerBits = 64;
 /** IEEE-754 widths supported by Eke's float reader. */
 type FloatBits = 32 | 64;
 
-export class EkeReader {
+export class ZedReader {
 	constructor(bytes: Uint8Array) {
 		this.buffer = bytes;
 		this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -37,13 +37,13 @@ export class EkeReader {
 		const start = this.offset;
 		const end = start + bits / 8;
 		if (!Number.isSafeInteger(start) || start < 0) {
-			this.fail(`u${bits}() cannot read from invalid offset ${start}`);
+			this.addIssue(`u${bits}() cannot read from invalid offset ${start}`);
 		}
 		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
-			this.fail(`u${bits}() cannot read with invalid limit ${this.limit}`);
+			this.addIssue(`u${bits}() cannot read with invalid limit ${this.limit}`);
 		}
 		if (end > this.limit || end > this.buffer.length) {
-			this.fail(`u${bits}() out of bounds`);
+			this.addIssue(`u${bits}() out of bounds`);
 		}
 
 		let value: number;
@@ -71,13 +71,13 @@ export class EkeReader {
 		const start = this.offset;
 		const end = start + bits / 8;
 		if (!Number.isSafeInteger(start) || start < 0) {
-			this.fail(`i${bits}() cannot read from invalid offset ${start}`);
+			this.addIssue(`i${bits}() cannot read from invalid offset ${start}`);
 		}
 		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
-			this.fail(`i${bits}() cannot read with invalid limit ${this.limit}`);
+			this.addIssue(`i${bits}() cannot read with invalid limit ${this.limit}`);
 		}
 		if (end > this.limit || end > this.buffer.length) {
-			this.fail(`i${bits}() out of bounds`);
+			this.addIssue(`i${bits}() out of bounds`);
 		}
 
 		const value =
@@ -96,13 +96,13 @@ export class EkeReader {
 		const start = this.offset;
 		const end = start + bits / 8;
 		if (!Number.isSafeInteger(start) || start < 0) {
-			this.fail(`u${bits}() cannot read from invalid offset ${start}`);
+			this.addIssue(`u${bits}() cannot read from invalid offset ${start}`);
 		}
 		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
-			this.fail(`u${bits}() cannot read with invalid limit ${this.limit}`);
+			this.addIssue(`u${bits}() cannot read with invalid limit ${this.limit}`);
 		}
 		if (end > this.limit || end > this.buffer.length) {
-			this.fail(`u${bits}() out of bounds`);
+			this.addIssue(`u${bits}() out of bounds`);
 		}
 
 		const value = this.view.getBigUint64(start, true);
@@ -115,13 +115,13 @@ export class EkeReader {
 		const start = this.offset;
 		const end = start + bits / 8;
 		if (!Number.isSafeInteger(start) || start < 0) {
-			this.fail(`i${bits}() cannot read from invalid offset ${start}`);
+			this.addIssue(`i${bits}() cannot read from invalid offset ${start}`);
 		}
 		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
-			this.fail(`i${bits}() cannot read with invalid limit ${this.limit}`);
+			this.addIssue(`i${bits}() cannot read with invalid limit ${this.limit}`);
 		}
 		if (end > this.limit || end > this.buffer.length) {
-			this.fail(`i${bits}() out of bounds`);
+			this.addIssue(`i${bits}() out of bounds`);
 		}
 
 		const value = this.view.getBigInt64(start, true);
@@ -134,13 +134,13 @@ export class EkeReader {
 		const start = this.offset;
 		const end = start + bits / 8;
 		if (!Number.isSafeInteger(start) || start < 0) {
-			this.fail(`f${bits}() cannot read from invalid offset ${start}`);
+			this.addIssue(`f${bits}() cannot read from invalid offset ${start}`);
 		}
 		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
-			this.fail(`f${bits}() cannot read with invalid limit ${this.limit}`);
+			this.addIssue(`f${bits}() cannot read with invalid limit ${this.limit}`);
 		}
 		if (end > this.limit || end > this.buffer.length) {
-			this.fail(`f${bits}() out of bounds`);
+			this.addIssue(`f${bits}() out of bounds`);
 		}
 
 		const value = bits === 32
@@ -153,19 +153,19 @@ export class EkeReader {
 	/** Reads `bytes` as one-byte character codes, advancing by default. */
 	ascii(bytes: number, advance = true) {
 		if (!Number.isSafeInteger(bytes) || bytes < 0) {
-			this.fail(`ascii() requires a non-negative byte count; got ${bytes}`);
+			this.addIssue(`ascii() requires a non-negative byte count; got ${bytes}`);
 		}
 
 		const start = this.offset;
 		const end = start + bytes;
 		if (!Number.isSafeInteger(start) || start < 0) {
-			this.fail(`ascii() cannot read from invalid offset ${start}`);
+			this.addIssue(`ascii() cannot read from invalid offset ${start}`);
 		}
 		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
-			this.fail(`ascii() cannot read with invalid limit ${this.limit}`);
+			this.addIssue(`ascii() cannot read with invalid limit ${this.limit}`);
 		}
 		if (end > this.limit || end > this.buffer.length) {
-			this.fail(`ascii() out of bounds`);
+			this.addIssue(`ascii() out of bounds`);
 		}
 
 		const value = bytes === 0
@@ -180,19 +180,19 @@ export class EkeReader {
 	/** Reads `bytes` as UTF-8 text, advancing by default. */
 	utf8(bytes: number, advance = true) {
 		if (!Number.isSafeInteger(bytes) || bytes < 0) {
-			this.fail(`utf8() requires a non-negative byte count; got ${bytes}`);
+			this.addIssue(`utf8() requires a non-negative byte count; got ${bytes}`);
 		}
 
 		const start = this.offset;
 		const end = start + bytes;
 		if (!Number.isSafeInteger(start) || start < 0) {
-			this.fail(`utf8() cannot read from invalid offset ${start}`);
+			this.addIssue(`utf8() cannot read from invalid offset ${start}`);
 		}
 		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
-			this.fail(`utf8() cannot read with invalid limit ${this.limit}`);
+			this.addIssue(`utf8() cannot read with invalid limit ${this.limit}`);
 		}
 		if (end > this.limit || end > this.buffer.length) {
-			this.fail(`utf8() out of bounds`);
+			this.addIssue(`utf8() out of bounds`);
 		}
 
 		const value = this.byteBuffer.toString("utf8", start, end);
@@ -203,19 +203,19 @@ export class EkeReader {
 	/** Reads `bytes` as little-endian UTF-16 text, advancing by default. */
 	utf16le(bytes: number, advance = true) {
 		if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes % 2 !== 0) {
-			this.fail(`utf16le() requires a non-negative, even byte count; got ${bytes}`);
+			this.addIssue(`utf16le() requires a non-negative, even byte count; got ${bytes}`);
 		}
 
 		const start = this.offset;
 		const end = start + bytes;
 		if (!Number.isSafeInteger(start) || start < 0) {
-			this.fail(`utf16le() cannot read from invalid offset ${start}`);
+			this.addIssue(`utf16le() cannot read from invalid offset ${start}`);
 		}
 		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
-			this.fail(`utf16le() cannot read with invalid limit ${this.limit}`);
+			this.addIssue(`utf16le() cannot read with invalid limit ${this.limit}`);
 		}
 		if (end > this.limit || end > this.buffer.length) {
-			this.fail(`utf16le() out of bounds`);
+			this.addIssue(`utf16le() out of bounds`);
 		}
 
 		const value = this.byteBuffer.toString("utf16le", start, end);
@@ -224,7 +224,7 @@ export class EkeReader {
 	}
 
 	/** Throws an `EkeError` with the current offset and path context. */
-	private fail(message: string): never {
-		throw new EkeError(this.initialOffset, this.path, message);
+	addIssue(message: string): never {
+		throw new ZedError(this.initialOffset, this.path, message);
 	}
 }
