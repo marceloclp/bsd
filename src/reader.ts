@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { EkeError } from "./error";
 
 /** Integer widths supported by Eke's number-backed readers. */
@@ -5,42 +6,78 @@ type IntegerBits = 8 | 16 | 24 | 32;
 /** Big-integer widths supported by Eke's bigint-backed readers. */
 type BigIntegerBits = 64;
 /** IEEE-754 widths supported by Eke's float reader. */
-export type FloatBits = 32 | 64;
-
-/** Options shared by direct context reads. */
-export type ReadOptions = {
-    /** Should this read operation advance the reader's offset? */
-    advance?: boolean
-};
+type FloatBits = 32 | 64;
 
 export class EkeReader {
-    constructor(bytes: Uint8Array) {
-        this.buffer = bytes;
-        this.view = new DataView(bytes.buffer);
-        this.limit = bytes.length;
-    }
+	constructor(bytes: Uint8Array) {
+		this.buffer = bytes;
+		this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+		this.byteBuffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+		this.limit = bytes.length;
+	}
 
-    /** Input bytes being decoded; schemas read this value but never mutate it. */
-    public readonly buffer: Uint8Array;
-    /** */
-    public readonly view: DataView;
+	/** Input bytes being decoded; schemas read this value but never mutate it. */
+	public readonly buffer: Uint8Array;
+	/** A view scoped to exactly the input bytes. */
+	public readonly view: DataView;
+	/** A zero-copy Buffer view used for fast Latin-1 decoding. */
+	private readonly byteBuffer: Buffer;
 
-    /** The path to the member currently being decoded. */
-    public path: Array<string | number> = [];
-    /** The starting offset of the member currently being decoded. */
-    public initialOffset: number = 0;
-    /** The current offset within the buffer (how many were bytes consumed). */
-    public offset: number = 0;
-    /** Exclusive boundary imposed by the innermost framed schema. */
-    public limit: number;
+	/** The path to the member currently being decoded. */
+	public path: Array<string | number> = [];
+	/** The starting offset of the member currently being decoded. */
+	public initialOffset: number = 0;
+	/** The current offset within the buffer (how many were bytes consumed). */
+	public offset: number = 0;
+	/** Exclusive boundary imposed by the innermost framed schema. */
+	public limit: number;
 
-   	/** Reads a little-endian unsigned integer, advancing by default. */
-	uint(bits: IntegerBits, { advance = true }: ReadOptions = {}) {
+	/** Reads a little-endian unsigned integer, advancing by default. */
+	uint(bits: IntegerBits, advance = true) {
 		const start = this.offset;
-        const end = start + bits / 8;
+		const end = start + bits / 8;
+		if (!Number.isSafeInteger(start) || start < 0) {
+			this.fail(`u${bits}() cannot read from invalid offset ${start}`);
+		}
+		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
+			this.fail(`u${bits}() cannot read with invalid limit ${this.limit}`);
+		}
+		if (end > this.limit || end > this.buffer.length) {
+			this.fail(`u${bits}() out of bounds`);
+		}
 
-        if (end > this.limit) {
-            throw this.addIssue(`u${bits}() out of bounds`);
+		let value: number;
+		switch (bits) {
+			case 8:
+				value = this.view.getUint8(start);
+				break;
+			case 16:
+				value = this.view.getUint16(start, true);
+				break;
+			case 24:
+				value = this.view.getUint16(start, true)
+					| (this.view.getUint8(start + 2) << 16);
+				break;
+			case 32:
+				value = this.view.getUint32(start, true);
+				break;
+		}
+		if (advance) this.offset = end;
+		return value;
+	}
+
+	/** Reads a little-endian signed integer, advancing by default. */
+	int(bits: IntegerBits, advance = true) {
+		const start = this.offset;
+		const end = start + bits / 8;
+		if (!Number.isSafeInteger(start) || start < 0) {
+			this.fail(`i${bits}() cannot read from invalid offset ${start}`);
+		}
+		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
+			this.fail(`i${bits}() cannot read with invalid limit ${this.limit}`);
+		}
+		if (end > this.limit || end > this.buffer.length) {
+			this.fail(`i${bits}() out of bounds`);
 		}
 
 		const value =
@@ -48,85 +85,146 @@ export class EkeReader {
 			(bits >= 16 ? this.buffer[start + 1]! << 8 : 0) |
 			(bits >= 24 ? this.buffer[start + 2]! << 16 : 0) |
 			(bits === 32 ? this.buffer[start + 3]! << 24 : 0);
-		if (advance) this.offset = end;
-		return value >>> 0;
-    }
-
-    /** Reads a little-endian signed integer, advancing by default. */
-	int(bits: IntegerBits, { advance = true }: ReadOptions = {}) {
-		const start = this.offset;
-		const end = start + bits / 8;
-        if (end > this.limit) {
-             throw this.addIssue(`i${bits}() out of bounds`);
-		}
-
-		const value = this.uint(bits, { advance: false });
-		if (advance) this.offset = end;
 		const shift = 32 - bits;
-		return (value << shift) >> shift;
-    }
+		const signed = (value << shift) >> shift;
+		if (advance) this.offset = end;
+		return signed;
+	}
 
-    /** Reads a little-endian unsigned bigint, advancing by default. */
-	biguint(bits: BigIntegerBits, { advance = true }: ReadOptions = {}) {
+	/** Reads a little-endian unsigned bigint, advancing by default. */
+	biguint(bits: BigIntegerBits, advance = true) {
 		const start = this.offset;
 		const end = start + bits / 8;
-        if (end > this.limit) {
-            throw this.addIssue(`u${bits}() out of bounds`);
+		if (!Number.isSafeInteger(start) || start < 0) {
+			this.fail(`u${bits}() cannot read from invalid offset ${start}`);
+		}
+		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
+			this.fail(`u${bits}() cannot read with invalid limit ${this.limit}`);
+		}
+		if (end > this.limit || end > this.buffer.length) {
+			this.fail(`u${bits}() out of bounds`);
 		}
 
 		const value = this.view.getBigUint64(start, true);
 		if (advance) this.offset = end;
 		return value;
-    }
+	}
 
-    /** Reads a little-endian signed bigint, advancing by default. */
-	bigint(bits: BigIntegerBits, { advance = true }: ReadOptions = {}) {
+	/** Reads a little-endian signed bigint, advancing by default. */
+	bigint(bits: BigIntegerBits, advance = true) {
 		const start = this.offset;
 		const end = start + bits / 8;
-        if (end > this.limit) {
-            throw this.addIssue(`i${bits}() out of bounds`);
+		if (!Number.isSafeInteger(start) || start < 0) {
+			this.fail(`i${bits}() cannot read from invalid offset ${start}`);
+		}
+		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
+			this.fail(`i${bits}() cannot read with invalid limit ${this.limit}`);
+		}
+		if (end > this.limit || end > this.buffer.length) {
+			this.fail(`i${bits}() out of bounds`);
 		}
 
-		const view = new DataView(this.buffer.buffer, this.buffer.byteOffset + start, bits / 8);
-		const value = view.getBigInt64(0, true);
-		if (advance) this.offset = end;
-		return value;
-    }
-
-   	/** Reads a little-endian IEEE-754 float, advancing by default. */
-	float(bits: FloatBits, { advance = true }: ReadOptions = {}) {
-		const start = this.offset;
-		const end = start + bits / 8;
-		if (end > this.limit) throw this.addIssue(`f${bits}() out of bounds`);
-
-		const view = new DataView(this.buffer.buffer, this.buffer.byteOffset + start, bits / 8);
-		const value = bits === 32 ? view.getFloat32(0, true) : view.getFloat64(0, true);
-		if (advance) this.offset = end;
-		return value;
-    }
-
-    /** Reads `bits` as one-byte character codes, advancing by default. */
-	ascii(bits: number, { advance = true }: ReadOptions = {}) {
-		const start = this.offset;
-		const byteLength = bits / 8;
-		const end = start + byteLength;
-		if (end > this.limit) {
-			throw this.addIssue(`ascii() expected ${byteLength} bytes, got ${this.limit - start}`);
-		}
-
-		let value = "";
-		for (let offset = start; offset < end; offset++) {
-			value += String.fromCharCode(this.buffer[offset]!);
-		}
+		const value = this.view.getBigInt64(start, true);
 		if (advance) this.offset = end;
 		return value;
 	}
 
-    /**
-     * Shortcut for throwing an `EkeError` with the current
-     * context (offset and path).
-     */
-    addIssue(message: string) {
-        throw new EkeError(this.initialOffset, this.path, message);
-    }
+	/** Reads a little-endian IEEE-754 float, advancing by default. */
+	float(bits: FloatBits, advance = true) {
+		const start = this.offset;
+		const end = start + bits / 8;
+		if (!Number.isSafeInteger(start) || start < 0) {
+			this.fail(`f${bits}() cannot read from invalid offset ${start}`);
+		}
+		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
+			this.fail(`f${bits}() cannot read with invalid limit ${this.limit}`);
+		}
+		if (end > this.limit || end > this.buffer.length) {
+			this.fail(`f${bits}() out of bounds`);
+		}
+
+		const value = bits === 32
+			? this.view.getFloat32(start, true)
+			: this.view.getFloat64(start, true);
+		if (advance) this.offset = end;
+		return value;
+	}
+
+	/** Reads `bytes` as one-byte character codes, advancing by default. */
+	ascii(bytes: number, advance = true) {
+		if (!Number.isSafeInteger(bytes) || bytes < 0) {
+			this.fail(`ascii() requires a non-negative byte count; got ${bytes}`);
+		}
+
+		const start = this.offset;
+		const end = start + bytes;
+		if (!Number.isSafeInteger(start) || start < 0) {
+			this.fail(`ascii() cannot read from invalid offset ${start}`);
+		}
+		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
+			this.fail(`ascii() cannot read with invalid limit ${this.limit}`);
+		}
+		if (end > this.limit || end > this.buffer.length) {
+			this.fail(`ascii() out of bounds`);
+		}
+
+		const value = bytes === 0
+			? ""
+			: bytes === 1
+				? String.fromCharCode(this.buffer[start]!)
+				: this.byteBuffer.toString("latin1", start, end);
+		if (advance) this.offset = end;
+		return value;
+	}
+
+	/** Reads `bytes` as UTF-8 text, advancing by default. */
+	utf8(bytes: number, advance = true) {
+		if (!Number.isSafeInteger(bytes) || bytes < 0) {
+			this.fail(`utf8() requires a non-negative byte count; got ${bytes}`);
+		}
+
+		const start = this.offset;
+		const end = start + bytes;
+		if (!Number.isSafeInteger(start) || start < 0) {
+			this.fail(`utf8() cannot read from invalid offset ${start}`);
+		}
+		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
+			this.fail(`utf8() cannot read with invalid limit ${this.limit}`);
+		}
+		if (end > this.limit || end > this.buffer.length) {
+			this.fail(`utf8() out of bounds`);
+		}
+
+		const value = this.byteBuffer.toString("utf8", start, end);
+		if (advance) this.offset = end;
+		return value;
+	}
+
+	/** Reads `bytes` as little-endian UTF-16 text, advancing by default. */
+	utf16le(bytes: number, advance = true) {
+		if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes % 2 !== 0) {
+			this.fail(`utf16le() requires a non-negative, even byte count; got ${bytes}`);
+		}
+
+		const start = this.offset;
+		const end = start + bytes;
+		if (!Number.isSafeInteger(start) || start < 0) {
+			this.fail(`utf16le() cannot read from invalid offset ${start}`);
+		}
+		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
+			this.fail(`utf16le() cannot read with invalid limit ${this.limit}`);
+		}
+		if (end > this.limit || end > this.buffer.length) {
+			this.fail(`utf16le() out of bounds`);
+		}
+
+		const value = this.byteBuffer.toString("utf16le", start, end);
+		if (advance) this.offset = end;
+		return value;
+	}
+
+	/** Throws an `EkeError` with the current offset and path context. */
+	private fail(message: string): never {
+		throw new EkeError(this.initialOffset, this.path, message);
+	}
 }

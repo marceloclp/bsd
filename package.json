@@ -2,6 +2,9 @@
   "name": "eke",
   "module": "index.ts",
   "type": "module",
+  "scripts": {
+    "bench:reader": "bun run bench/reader.bench.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
