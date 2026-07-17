@@ -149,3 +149,5 @@ export function eager<T1 extends ZedAny, T2 extends ZedAny>(
         return result;
     }) as any;
 }
+
+export function remaining() {}

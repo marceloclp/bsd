@@ -1,0 +1,89 @@
+---
+title: API reference
+description: Constructors, schema methods, and inferred types in the current Eke implementation.
+sidebar:
+  label: API
+  icon: braces
+---
+
+## Numeric constructors
+
+Import the current constructors from `src/types.ts`.
+
+| Function | Return value | Description |
+| --- | --- | --- |
+| `u8()` | `ZedNumber<number>` | Unsigned 8-bit integer |
+| `u16()` | `ZedNumber<number>` | Unsigned 16-bit integer |
+| `u24()` | `ZedNumber<number>` | Unsigned 24-bit integer |
+| `u32()` | `ZedNumber<number>` | Unsigned 32-bit integer |
+| `u64()` | `ZedNumber<bigint>` | Unsigned 64-bit integer |
+| `i8()` | `ZedNumber<number>` | Signed 8-bit integer |
+| `i16()` | `ZedNumber<number>` | Signed 16-bit integer |
+| `i24()` | `ZedNumber<number>` | Signed 24-bit integer |
+| `i32()` | `ZedNumber<number>` | Signed 32-bit integer |
+| `i64()` | `ZedNumber<bigint>` | Signed 64-bit integer |
+| `f32()` | `ZedNumber<number>` | IEEE-754 32-bit float |
+| `f64()` | `ZedNumber<number>` | IEEE-754 64-bit float |
+
+Every constructor reads little-endian data.
+
+## `array(n, type)`
+
+Decodes `type` repeatedly and returns an array of its decoded values.
+
+```ts
+function array<T extends ZedAny>(
+  n: ZedNumber | number | bigint,
+  type: T,
+): ZedArray<ZedInfer<T>>;
+```
+
+- A number or bigint creates a fixed-length array.
+- A `ZedNumber` is decoded from the input and becomes the element count.
+- A failure inside an element includes its index in the error path.
+
+## `eager(value, type)`
+
+Decodes a controlling value, builds the following schema at runtime, and
+returns only the following schema's output.
+
+```ts
+function eager<T1 extends ZedAny, T2 extends ZedAny>(
+  value: T1 | ((reader: ZedReader) => T1),
+  type: (value: ZedInfer<T1>, reader: ZedReader) => T2,
+): ZedInferNext<ZedInfer<T2>>;
+```
+
+Both callbacks receive the active reader. The resolver form of `value` is useful
+for lookahead; the `type` callback is useful for length-prefixed or tagged data.
+
+## Common schema methods
+
+All `ZedType` schemas provide these methods.
+
+| Method | Result |
+| --- | --- |
+| `decode(bytes)` | Decodes a complete `Uint8Array` or throws `ZedError` |
+| `undo()` | Resets the offset to this member's starting position |
+| `skip(bytes)` | Advances after the member by a static or decoded byte count |
+| `check(callback)` | Adds custom validation |
+| `is(expected)` | Requires shallow equality |
+| `in(values)` | Requires membership in an array, set, or map |
+| `transform(callback)` | Maps the result and returns a schema for its new type |
+
+## Number schema methods
+
+`ZedNumber` adds `gt()`, `gte()`, `lt()`, `lte()`, `positive()`, and
+`negative()`. Comparison arguments use `number` for schemas up through 32 bits
+and `bigint` for `u64()` and `i64()`.
+
+## Type helpers
+
+The type layer in `src/zed.ts` exports:
+
+- `ZedInfer<T>` recursively resolves schemas and nested values.
+- `ZedUnwrap<T>` resolves every schema in a record.
+- `ZedInferNext<T>` maps a transformed result back to its specialized schema
+  interface.
+- `ZedDecoder<T>`, `ZedCheck<T>`, and `ZedTransform<T, R>` describe callbacks.
+- `ZedAny` is the union of supported schema interfaces.

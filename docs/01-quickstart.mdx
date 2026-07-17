@@ -1,0 +1,87 @@
+---
+title: Quickstart
+description: Install the project and decode your first binary value.
+sidebar:
+  icon: rocket
+  order: 1
+---
+
+<Steps>
+  <Step title="Install dependencies">
+    Eke currently runs from a repository checkout and uses Bun for development.
+
+    ```bash
+    bun install
+    ```
+  </Step>
+  <Step title="Create a schema">
+    Add `playground.ts` at the repository root:
+
+    ```ts
+    import { u16 } from "./src/types";
+
+    const version = u16();
+    const decoded = version.decode(Uint8Array.of(0x02, 0x00));
+
+    console.log(decoded); // 2
+    ```
+  </Step>
+  <Step title="Run it">
+    ```bash
+    bun run playground.ts
+    ```
+  </Step>
+</Steps>
+
+## How decoding works
+
+Calling a constructor such as `u16()` creates a schema. Calling `decode()` on
+that schema creates a reader for the supplied bytes, consumes the value, applies
+each chained validation or transformation, and verifies that no bytes remain.
+
+```ts
+import { u8 } from "./src/types";
+
+u8().decode(Uint8Array.of(7));       // 7
+u8().decode(Uint8Array.of(7, 8));    // throws: one byte remains
+u8().decode(Uint8Array.of());        // throws: out of bounds
+```
+
+## Add validation
+
+Number schemas expose comparison helpers. They return a new schema, so the
+original remains reusable.
+
+```ts
+import { u8 } from "./src/types";
+
+const anyByte = u8();
+const percentage = anyByte.gte(0).lte(100);
+
+percentage.decode(Uint8Array.of(85));  // 85
+percentage.decode(Uint8Array.of(101)); // throws EkeError
+```
+
+## Decode repeated values
+
+Use `array()` for a fixed number of values or pass a numeric schema when the
+input contains its own element count.
+
+```ts
+import { array, u8, u16 } from "./src/types";
+
+const fixed = array(2, u16());
+fixed.decode(Uint8Array.of(1, 0, 2, 0)); // [1, 2]
+
+const counted = array(u8(), u16());
+counted.decode(Uint8Array.of(2, 1, 0, 2, 0)); // [1, 2]
+```
+
+<CardGroup cols={2}>
+  <Card title="Number schemas" href="/guides/numbers" icon="hash">
+    Review widths, return types, and byte order.
+  </Card>
+  <Card title="Validation and transforms" href="/guides/validation-and-transforms" icon="filter">
+    Refine decoded values and produce application types.
+  </Card>
+</CardGroup>

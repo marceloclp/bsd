@@ -1,0 +1,71 @@
+---
+title: Number schemas
+description: Decode little-endian integers and IEEE-754 floating-point values.
+sidebar:
+  label: Numbers
+  icon: hash
+---
+
+Eke provides a schema for each currently supported numeric width. All numeric
+schemas read little-endian data and advance by their width.
+
+## Integers
+
+| Schema | Width | Signed | Result |
+| --- | ---: | :---: | --- |
+| `u8()` | 1 byte | No | `number` |
+| `u16()` | 2 bytes | No | `number` |
+| `u24()` | 3 bytes | No | `number` |
+| `u32()` | 4 bytes | No | `number` |
+| `u64()` | 8 bytes | No | `bigint` |
+| `i8()` | 1 byte | Yes | `number` |
+| `i16()` | 2 bytes | Yes | `number` |
+| `i24()` | 3 bytes | Yes | `number` |
+| `i32()` | 4 bytes | Yes | `number` |
+| `i64()` | 8 bytes | Yes | `bigint` |
+
+```ts
+import { i16, u24, u64 } from "./src/types";
+
+i16().decode(Uint8Array.of(0xfe, 0xff));
+// -2
+
+u24().decode(Uint8Array.of(0x56, 0x34, 0x12));
+// 0x123456
+
+u64().decode(Uint8Array.of(8, 7, 6, 5, 4, 3, 2, 1));
+// 0x0102030405060708n
+```
+
+:::warning
+The 64-bit schemas return `bigint`. Their comparisons must also use bigint
+literals, such as `u64().gt(0n)`.
+:::
+
+## Floating point
+
+`f32()` and `f64()` decode little-endian IEEE-754 values and return `number`.
+
+```ts
+import { f32 } from "./src/types";
+
+const bytes = new Uint8Array(4);
+new DataView(bytes.buffer).setFloat32(0, 1.5, true);
+
+f32().decode(bytes); // 1.5
+```
+
+## Numeric validation
+
+Every number schema supports `gt()`, `gte()`, `lt()`, `lte()`, `positive()`,
+and `negative()`.
+
+```ts
+import { i32, u16 } from "./src/types";
+
+const tcpPort = u16().gte(1).lte(65_535);
+const belowSeaLevel = i32().negative();
+```
+
+These checks run after decoding. A failed check throws `ZedError`, whose public
+error name is `EkeError`.

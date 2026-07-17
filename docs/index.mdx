@@ -1,0 +1,62 @@
+---
+title: Eke
+description: Type-safe, composable binary decoding for TypeScript.
+sidebar:
+  label: Introduction
+  icon: binary
+  order: 0
+---
+
+Eke turns byte layouts into small, composable schemas. Define how a value is
+encoded, decode a `Uint8Array`, and keep the result type all the way through
+validation and transformation.
+
+```ts
+import { u16 } from "./src/types";
+
+const port = u16().gte(1).lte(65_535);
+const value = port.decode(Uint8Array.of(0x90, 0x1f));
+
+console.log(value); // 8080
+```
+
+All built-in numeric readers are little-endian. A schema succeeds only when it
+consumes the complete input, which catches truncated data as well as unexpected
+trailing bytes.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" href="/quickstart" icon="rocket">
+    Decode your first value from a repository checkout.
+  </Card>
+  <Card title="Numbers" href="/guides/numbers" icon="hash">
+    Choose an integer or floating-point schema.
+  </Card>
+  <Card title="Arrays and dynamic values" href="/guides/arrays-and-dynamic-values" icon="list">
+    Decode repeated and length-prefixed data.
+  </Card>
+  <Card title="API reference" href="/reference/api" icon="braces">
+    See the current schemas and chainable methods.
+  </Card>
+</CardGroup>
+
+## Why Eke
+
+- **Composable schemas.** Build larger decoders from focused primitives.
+- **Typed results.** Numeric width, `bigint`, arrays, and transformed values
+  remain visible to TypeScript.
+- **Contextual failures.** Decode errors carry the byte offset and nested path.
+- **Explicit control.** Skip padding, inspect the active reader, or choose the
+  next schema at runtime.
+
+:::note
+Eke is under active development and is not published to a package registry yet.
+The examples in these docs use imports from the current repository checkout.
+:::
+
+## Current scope
+
+The current implementation includes signed and unsigned integers, IEEE-754
+floats, static and length-prefixed arrays, runtime-resolved schemas, validation,
+and transformations. Struct and byte-string interfaces exist in the type layer,
+but public constructors for them have not landed yet and are intentionally not
+documented as usable APIs.

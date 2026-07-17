@@ -1,0 +1,96 @@
+---
+title: Validation and transforms
+description: Validate, reshape, skip, and revisit decoded values.
+sidebar:
+  icon: filter
+---
+
+Schema methods are immutable: every call returns a new schema with an extended
+transformation pipeline.
+
+## Built-in checks
+
+Use `is()` for equality and `in()` for membership. Number schemas also provide
+comparison helpers.
+
+```ts
+import { u8 } from "./src/types";
+
+const marker = u8().is(0x7f);
+const status = u8().in([0, 1, 2]);
+const bounded = u8().gte(10).lte(20);
+```
+
+`in()` accepts an array, `Set`, or `Map`. For large collections, use a set or map
+to avoid a linear array lookup.
+
+## Custom checks
+
+`check()` receives the decoded value and active reader. Return `false` to reject
+the value, return nothing to accept it, or call `reader.addIssue()` to report a
+specific message.
+
+```ts
+import { u16 } from "./src/types";
+
+const even = u16().check((value, reader) => {
+  if (value % 2 !== 0) {
+    reader.addIssue("expected an even value");
+  }
+});
+```
+
+A named function that returns `false` uses its function name as the issue text.
+
+```ts
+const even = u16().check(function isEven(value) {
+  return value % 2 === 0;
+});
+```
+
+## Transform values
+
+`transform()` maps a decoded value to a new result and updates the schema's
+TypeScript API to match that result.
+
+```ts
+import { u16 } from "./src/types";
+
+const flags = u16().transform((value) => ({
+  readable: (value & 0b001) !== 0,
+  writable: (value & 0b010) !== 0,
+  executable: (value & 0b100) !== 0,
+}));
+
+const decoded = flags.decode(Uint8Array.of(0b011, 0));
+// { readable: true, writable: true, executable: false }
+```
+
+Thrown `Error` instances become contextual `ZedError` failures. Throwing an
+existing `ZedError` preserves it.
+
+## Skip bytes
+
+`skip()` advances past padding or reserved data after decoding the current
+value. It accepts a static number or bigint, or another numeric schema.
+
+```ts
+import { u8 } from "./src/types";
+
+const valueWithPadding = u8().skip(2);
+
+valueWithPadding.decode(Uint8Array.of(
+  7,       // decoded result
+  0xff,    // skipped
+  0xff,    // skipped
+)); // 7
+```
+
+Dynamic skip schemas consume their own bytes before the skipped range.
+
+## Revisit a byte range
+
+`undo()` resets the reader offset to the position where the current schema
+started. It is intended for composed schemas that need to interpret the same
+bits more than once. A top-level schema still has to consume the complete input,
+so `undo()` is normally paired with a subsequent schema that rereads the range.

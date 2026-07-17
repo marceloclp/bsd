@@ -1,0 +1,84 @@
+---
+title: Arrays and dynamic values
+description: Decode repeated data and choose schemas from values in the input.
+sidebar:
+  icon: list
+---
+
+## Fixed-length arrays
+
+Pass a number or bigint to `array()` when the element count is part of the file
+format rather than the input.
+
+```ts
+import { array, u16 } from "./src/types";
+
+const coordinates = array(3, u16());
+
+coordinates.decode(Uint8Array.of(
+  10, 0,
+  20, 0,
+  30, 0,
+)); // [10, 20, 30]
+```
+
+The element schema can contain its own validation and transformations.
+
+```ts
+import { array, i16 } from "./src/types";
+
+const temperatures = array(4, i16().gte(-100).lte(100));
+```
+
+## Length-prefixed arrays
+
+Pass a number schema as the first argument when the count is encoded immediately
+before the elements. The count is consumed but omitted from the result.
+
+```ts
+import { array, u8, u16 } from "./src/types";
+
+const values = array(u8(), u16());
+
+values.decode(Uint8Array.of(
+  3,
+  10, 0,
+  20, 0,
+  30, 0,
+)); // [10, 20, 30]
+```
+
+If metadata or padding sits between the count and the first item, chain `skip()`
+on the count schema.
+
+```ts
+const values = array(u8().skip(2), u16());
+```
+
+## Runtime-resolved schemas
+
+`eager()` decodes a controlling value and passes it to a callback that creates
+the schema for the following bytes. The controlling value is not included in
+the output.
+
+```ts
+import { array, eager, u8, u16 } from "./src/types";
+
+const packet = eager(
+  u8(),
+  (count) => array(count, u16()),
+);
+
+packet.decode(Uint8Array.of(2, 10, 0, 20, 0));
+// [10, 20]
+```
+
+The first argument may also be a function that receives the active `ZedReader`.
+Use that form when non-consuming lookahead decides how to read the controlling
+value.
+
+## Reader paths
+
+While an array item is being decoded, its zero-based index is appended to the
+reader path. A validation error in the third item therefore identifies index
+`2`, which is useful when inspecting large binary collections.

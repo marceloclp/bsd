@@ -1,0 +1,77 @@
+---
+title: Errors and reader
+description: Decode failure context and the low-level reader contract.
+sidebar:
+  icon: triangle-alert
+---
+
+## `ZedError`
+
+Decode and validation failures throw `ZedError` from `src/error.ts`. The class
+exposes the position and path separately from its formatted message.
+
+| Property | Type | Meaning |
+| --- | --- | --- |
+| `name` | `"EkeError"` | Public error name |
+| `offset` | `number` | Starting byte offset of the failing member |
+| `path` | `(string \| number \| bigint)[]` | Nested member and array path |
+| `message` | `string` | Offset, formatted path, and issue text |
+
+```ts
+import { ZedError } from "./src/error";
+import { array, u8 } from "./src/types";
+
+try {
+  array(3, u8().lt(10)).decode(Uint8Array.of(1, 2, 99));
+} catch (error) {
+  if (error instanceof ZedError) {
+    console.error(error.offset); // 2
+    console.error(error.path);   // [2]
+    console.error(error.message);
+  }
+}
+```
+
+## `ZedReader`
+
+`ZedReader` is the mutable cursor used by schemas. Most users interact with it
+only inside `check()`, `transform()`, or `eager()` callbacks.
+
+| Property | Purpose |
+| --- | --- |
+| `buffer` | Original input as a read-only `Uint8Array` reference |
+| `view` | `DataView` scoped to the input byte range |
+| `path` | Current nested decode path |
+| `position` | Starting offset of the current member |
+| `offset` | Current cursor position |
+| `length` | Exclusive boundary for the active frame |
+
+The low-level methods are `uint()`, `int()`, `biguint()`, `bigint()`, `float()`,
+`ascii()`, `utf8()`, and `utf16le()`. Each advances by default and accepts
+`false` as its final argument for non-consuming lookahead.
+
+```ts
+import { eager, u8, u16 } from "./src/types";
+
+const tagged = eager(
+  (reader) => reader.uint(8, false) === 1 ? u8() : u16(),
+  (tag) => u8().transform((value) => ({ tag, value })),
+);
+```
+
+:::warning
+Reader methods are low-level building blocks. They validate bounds, but directly
+changing `offset`, `position`, or `length` can break a schema's framing
+invariants.
+:::
+
+## Custom issues
+
+Call `reader.addIssue(message)` inside a callback to throw immediately with the
+current byte position and path.
+
+```ts
+const reserved = u8().check((value, reader) => {
+  if (value !== 0) reader.addIssue("reserved byte must be zero");
+});
+```

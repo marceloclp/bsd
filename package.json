@@ -3,10 +3,16 @@
   "module": "index.ts",
   "type": "module",
   "scripts": {
-    "bench:reader": "bun run bench/reader.bench.ts"
+    "bench:reader": "bun run bench/reader.bench.ts",
+    "docs:dev": "bun --bun blume dev",
+    "docs:build": "bun --bun blume build",
+    "docs:preview": "bun --bun blume preview",
+    "docs:check": "bun --bun blume check",
+    "docs:validate": "bun --bun blume validate"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "blume": "^1.0.4"
   },
   "peerDependencies": {
     "typescript": "^5"
