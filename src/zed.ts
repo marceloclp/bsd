@@ -6,14 +6,29 @@ type Mask<T extends Record<string, unknown>> = {
 };
 
 type MaskPick<T extends Record<string, unknown>, M extends Mask<T>> = {
-    [K in keyof T]?: M[K] extends true ? K : never;
+    [K in keyof T as M[K] extends true ? K : never]: T[K];
 };
 
 type MaskOmit<T extends Record<string, unknown>, M extends Mask<T>> = {
-    [K in keyof T]?: M[K] extends true ? never : K;
+    [K in keyof T as M[K] extends true ? never : K]: T[K];
 };
 
-export type ZedInferNext<T> = ZedType<T>;
+export type ZedUnwrap<T extends Record<string, ZedAny>> = {
+    [K in keyof T]: T[K] extends ZedType<infer U> ? U : never;
+};
+
+export type ZedInferNext<T> =
+    T extends Uint8Array
+    ? ZedBytes
+    : T extends readonly (infer U)[]
+    ? ZedArray<U>
+    : T extends number
+    ? ZedNumber
+    : T extends string
+    ? ZedString
+    : T extends Record<string, any>
+    ? ZedStruct<T>
+    : ZedType<T>;
 
 /**
  *
@@ -338,4 +353,5 @@ export type ZedAny =
     | ZedStruct
     | ZedString
     | ZedNumber
+    | ZedBytes
     | ZedType;

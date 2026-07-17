@@ -1,11 +1,11 @@
+import { Buffer } from "node:buffer";
+import { ZedError } from "./error";
 import { ZedReader } from "./reader";
 import type {
-    ZedAny,
     ZedArray,
     ZedBytes,
     ZedCheck,
     ZedDecoder,
-    ZedInferNext,
     ZedNumber,
     ZedString,
     ZedStruct,
@@ -21,7 +21,7 @@ export class Zed
         private readonly decoder: ZedDecoder<any>,
 
         /** The transformation pipeline. */
-        private readonly transformers: ZedTransform<any, any>[],
+        private readonly transformers: ZedTransform<any, any>[] = [],
     ) {}
 
     decode(bytes: Uint8Array): any {
@@ -49,8 +49,14 @@ export class Zed
                     ? bytes
                     : (bytes as unknown as Zed).decodeInternal(reader);
 
+            if (!Number.isSafeInteger(length) || length < 0) {
+                reader.addIssue(
+                    `skip() requires a non-negative byte count, got ${length}`,
+                );
+            }
+
             const end = reader.offset + length;
-            if (end < reader.offset || end > reader.length) {
+            if (end > reader.length) {
                 reader.addIssue(
                     `skip() expected ${length} bytes, got ${reader.length - reader.offset}`,
                 );
@@ -63,7 +69,7 @@ export class Zed
 
     check(check: ZedCheck<any>): any {
         return this.addTransform((value, reader) => {
-            if (!check(value, reader)) {
+            if (check(value, reader) === false) {
                 reader.addIssue(check.name);
             }
             return value;
@@ -92,11 +98,14 @@ export class Zed
         });
     }
 
-    trasform<R>(transform: ZedTransform<any, R>): any {
+    transform<R>(transform: ZedTransform<any, R>): any {
         return this.addTransform((value, reader) => {
             try {
                 return transform(value, reader);
             } catch (error) {
+                if (error instanceof ZedError) {
+                    throw error;
+                }
                 if (error instanceof Error) {
                     reader.addIssue(error.message);
                 } else {
@@ -147,7 +156,7 @@ export class Zed
     }
 
     positive() {
-        return this.gte(0);
+        return this.gt(0);
     }
 
     negative() {
@@ -192,7 +201,7 @@ export class Zed
     pick(mask: Partial<Record<string, true>>): any {
         return this.addTransform((value: Record<string, any>) => {
             for (const key in value) {
-                if (!(key in mask) && mask[key] === true) {
+                if (mask[key] !== true) {
                     delete value[key];
                 }
             }
