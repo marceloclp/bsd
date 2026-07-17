@@ -13,7 +13,7 @@ export class ZedReader {
 		this.buffer = bytes;
 		this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 		this.byteBuffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-		this.limit = bytes.length;
+		this.length = bytes.length;
 	}
 
 	/** Input bytes being decoded; schemas read this value but never mutate it. */
@@ -26,11 +26,11 @@ export class ZedReader {
 	/** The path to the member currently being decoded. */
 	public path: Array<string | number> = [];
 	/** The starting offset of the member currently being decoded. */
-	public initialOffset: number = 0;
+	public position: number = 0;
 	/** The current offset within the buffer (how many were bytes consumed). */
 	public offset: number = 0;
 	/** Exclusive boundary imposed by the innermost framed schema. */
-	public limit: number;
+	public length: number;
 
 	/** Reads a little-endian unsigned integer, advancing by default. */
 	uint(bits: IntegerBits, advance = true) {
@@ -39,10 +39,10 @@ export class ZedReader {
 		if (!Number.isSafeInteger(start) || start < 0) {
 			this.addIssue(`u${bits}() cannot read from invalid offset ${start}`);
 		}
-		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
-			this.addIssue(`u${bits}() cannot read with invalid limit ${this.limit}`);
+		if (!Number.isSafeInteger(this.length) || this.length < 0) {
+			this.addIssue(`u${bits}() cannot read with invalid limit ${this.length}`);
 		}
-		if (end > this.limit || end > this.buffer.length) {
+		if (end > this.length || end > this.buffer.length) {
 			this.addIssue(`u${bits}() out of bounds`);
 		}
 
@@ -73,10 +73,10 @@ export class ZedReader {
 		if (!Number.isSafeInteger(start) || start < 0) {
 			this.addIssue(`i${bits}() cannot read from invalid offset ${start}`);
 		}
-		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
-			this.addIssue(`i${bits}() cannot read with invalid limit ${this.limit}`);
+		if (!Number.isSafeInteger(this.length) || this.length < 0) {
+			this.addIssue(`i${bits}() cannot read with invalid limit ${this.length}`);
 		}
-		if (end > this.limit || end > this.buffer.length) {
+		if (end > this.length || end > this.buffer.length) {
 			this.addIssue(`i${bits}() out of bounds`);
 		}
 
@@ -98,10 +98,10 @@ export class ZedReader {
 		if (!Number.isSafeInteger(start) || start < 0) {
 			this.addIssue(`u${bits}() cannot read from invalid offset ${start}`);
 		}
-		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
-			this.addIssue(`u${bits}() cannot read with invalid limit ${this.limit}`);
+		if (!Number.isSafeInteger(this.length) || this.length < 0) {
+			this.addIssue(`u${bits}() cannot read with invalid limit ${this.length}`);
 		}
-		if (end > this.limit || end > this.buffer.length) {
+		if (end > this.length || end > this.buffer.length) {
 			this.addIssue(`u${bits}() out of bounds`);
 		}
 
@@ -117,10 +117,10 @@ export class ZedReader {
 		if (!Number.isSafeInteger(start) || start < 0) {
 			this.addIssue(`i${bits}() cannot read from invalid offset ${start}`);
 		}
-		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
-			this.addIssue(`i${bits}() cannot read with invalid limit ${this.limit}`);
+		if (!Number.isSafeInteger(this.length) || this.length < 0) {
+			this.addIssue(`i${bits}() cannot read with invalid limit ${this.length}`);
 		}
-		if (end > this.limit || end > this.buffer.length) {
+		if (end > this.length || end > this.buffer.length) {
 			this.addIssue(`i${bits}() out of bounds`);
 		}
 
@@ -136,10 +136,10 @@ export class ZedReader {
 		if (!Number.isSafeInteger(start) || start < 0) {
 			this.addIssue(`f${bits}() cannot read from invalid offset ${start}`);
 		}
-		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
-			this.addIssue(`f${bits}() cannot read with invalid limit ${this.limit}`);
+		if (!Number.isSafeInteger(this.length) || this.length < 0) {
+			this.addIssue(`f${bits}() cannot read with invalid limit ${this.length}`);
 		}
-		if (end > this.limit || end > this.buffer.length) {
+		if (end > this.length || end > this.buffer.length) {
 			this.addIssue(`f${bits}() out of bounds`);
 		}
 
@@ -161,10 +161,10 @@ export class ZedReader {
 		if (!Number.isSafeInteger(start) || start < 0) {
 			this.addIssue(`ascii() cannot read from invalid offset ${start}`);
 		}
-		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
-			this.addIssue(`ascii() cannot read with invalid limit ${this.limit}`);
+		if (!Number.isSafeInteger(this.length) || this.length < 0) {
+			this.addIssue(`ascii() cannot read with invalid limit ${this.length}`);
 		}
-		if (end > this.limit || end > this.buffer.length) {
+		if (end > this.length || end > this.buffer.length) {
 			this.addIssue(`ascii() out of bounds`);
 		}
 
@@ -188,10 +188,10 @@ export class ZedReader {
 		if (!Number.isSafeInteger(start) || start < 0) {
 			this.addIssue(`utf8() cannot read from invalid offset ${start}`);
 		}
-		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
-			this.addIssue(`utf8() cannot read with invalid limit ${this.limit}`);
+		if (!Number.isSafeInteger(this.length) || this.length < 0) {
+			this.addIssue(`utf8() cannot read with invalid limit ${this.length}`);
 		}
-		if (end > this.limit || end > this.buffer.length) {
+		if (end > this.length || end > this.buffer.length) {
 			this.addIssue(`utf8() out of bounds`);
 		}
 
@@ -211,10 +211,10 @@ export class ZedReader {
 		if (!Number.isSafeInteger(start) || start < 0) {
 			this.addIssue(`utf16le() cannot read from invalid offset ${start}`);
 		}
-		if (!Number.isSafeInteger(this.limit) || this.limit < 0) {
-			this.addIssue(`utf16le() cannot read with invalid limit ${this.limit}`);
+		if (!Number.isSafeInteger(this.length) || this.length < 0) {
+			this.addIssue(`utf16le() cannot read with invalid limit ${this.length}`);
 		}
-		if (end > this.limit || end > this.buffer.length) {
+		if (end > this.length || end > this.buffer.length) {
 			this.addIssue(`utf16le() out of bounds`);
 		}
 
@@ -225,6 +225,6 @@ export class ZedReader {
 
 	/** Throws an `EkeError` with the current offset and path context. */
 	addIssue(message: string): never {
-		throw new ZedError(this.initialOffset, this.path, message);
+		throw new ZedError(this.position, this.path, message);
 	}
 }

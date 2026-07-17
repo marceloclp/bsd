@@ -1,3 +1,4 @@
+import type { ZedError } from "./error";
 import type { ZedReader } from "./reader";
 
 type Mask<T extends Record<string, unknown>> = {
@@ -12,7 +13,12 @@ type MaskOmit<T extends Record<string, unknown>, M extends Mask<T>> = {
     [K in keyof T]?: M[K] extends true ? never : K;
 };
 
-export type InferNext<T> = ZedType<T>;
+export type ZedInferNext<T> = ZedType<T>;
+
+/**
+ *
+ */
+export type ZedDecoder<T> = (reader: ZedReader) => T;
 
 /**
  *
@@ -26,6 +32,15 @@ export type ZedTransform<T, R> = (value: T, reader: ZedReader) => R;
 
 export interface ZedType<T = any> {
     /**
+     * Decodes a `Uint8Array` using this schema.
+     *
+     * @throws {ZedError} if the number of bytes is different
+     *          than the expected length of the entire schema
+     * @returns {T} the decoded value
+     */
+    decode(bytes: Uint8Array): T;
+
+    /**
      * Walks back the offset caused by the member's
      * decoding step.
      *
@@ -37,7 +52,7 @@ export interface ZedType<T = any> {
      * ```typescript
      * ```
      */
-    undo(): InferNext<T>;
+    undo(): ZedInferNext<T>;
 
     /**
      * Advances the reader past a fixed or dynamic number of
@@ -62,7 +77,7 @@ export interface ZedType<T = any> {
      * });
      * ```
      */
-    skip(bytes: number | ZedType<number>): InferNext<T>;
+    skip(bytes: number | ZedNumber): ZedInferNext<T>;
 
     /**
      * Performs a custom check on the decoded member. If the
@@ -91,7 +106,7 @@ export interface ZedType<T = any> {
      * });
      * ```
      */
-    check(check: ZedCheck<T>): InferNext<T>;
+    check(check: ZedCheck<T>): ZedInferNext<T>;
 
     /**
      * Performs a shallow equality check on the decoded member.
@@ -106,7 +121,23 @@ export interface ZedType<T = any> {
      * u8().is(128);
      * ```
      */
-    is(expected: T): InferNext<T>;
+    is(expected: T): ZedInferNext<T>;
+
+    /**
+     * Checks if the decoded member is one of the provided
+     * values of the iterable. Arrays will be checked in O(n),
+     * so prefer using a `Set/Map` for large ranges.
+     *
+     * @example
+     * ```typescript
+     * // Using check() - creates a new array on every check:
+     * u8().check((v) => [128, 129, 130].includes(v));
+     *
+     * // Using in() - optimized:
+     * u8().in([128, 129, 130]);
+     * ```
+     */
+    in<const R extends T>(iter: Array<T> | Set<T> | Map<T, any>): ZedInferNext<R>;
 
     /**
      * Applies a custom transformation to the decoded member. This
@@ -121,7 +152,7 @@ export interface ZedType<T = any> {
      * bytes(10).transform((v) => v.reduce((a, b) => a + b, 0));
      * ```
      */
-    transform<R>(transform: ZedTransform<T, R>): InferNext<R>;
+    transform<R>(transform: ZedTransform<T, R>): ZedInferNext<R>;
 }
 
 export interface ZedNumber extends ZedType<number> {

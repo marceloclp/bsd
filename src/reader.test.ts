@@ -114,11 +114,11 @@ describe(ZedReader, () => {
 		}
 
 		const framed = new ZedReader(Uint8Array.of(1, 2));
-		framed.limit = 1;
+		framed.length = 1;
 		expect(() => framed.uint(16)).toThrow(ZedError);
 
 		const oversizedLimit = new ZedReader(Uint8Array.of(1));
-		oversizedLimit.limit = 2;
+		oversizedLimit.length = 2;
 		expect(() => oversizedLimit.uint(16)).toThrow(ZedError);
 	});
 
