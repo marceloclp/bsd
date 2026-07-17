@@ -24,7 +24,7 @@ export class ZedReader {
 	private readonly byteBuffer: Buffer;
 
 	/** The path to the member currently being decoded. */
-	public path: Array<string | number> = [];
+	public path: Array<string | number | bigint> = [];
 	/** The starting offset of the member currently being decoded. */
 	public position: number = 0;
 	/** The current offset within the buffer (how many were bytes consumed). */

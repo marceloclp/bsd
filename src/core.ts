@@ -42,23 +42,41 @@ export class Zed
         return this.addTransform(undo);
     }
 
-    skip(bytes: number | ZedNumber): any {
+    skip(
+        bytes: number | bigint | ZedNumber<number> | ZedNumber<bigint>,
+    ): any {
         return this.addTransform((value, reader) => {
-            const length =
-                typeof bytes === "number"
+            const decodedLength =
+                typeof bytes === "number" || typeof bytes === "bigint"
                     ? bytes
                     : (bytes as unknown as Zed).decodeInternal(reader);
 
-            if (!Number.isSafeInteger(length) || length < 0) {
+            if (
+                (typeof decodedLength === "bigint" && decodedLength < 0n)
+                || (typeof decodedLength === "number" && (
+                    !Number.isSafeInteger(decodedLength) || decodedLength < 0
+                ))
+            ) {
                 reader.addIssue(
-                    `skip() requires a non-negative byte count, got ${length}`,
+                    `skip() requires a non-negative byte count, got ${decodedLength}`,
                 );
             }
 
+            const remaining = reader.length - reader.offset;
+            if (
+                typeof decodedLength === "bigint"
+                && decodedLength > BigInt(remaining)
+            ) {
+                reader.addIssue(
+                    `skip() expected ${decodedLength} bytes, got ${remaining}`,
+                );
+            }
+
+            const length = Number(decodedLength);
             const end = reader.offset + length;
             if (end > reader.length) {
                 reader.addIssue(
-                    `skip() expected ${length} bytes, got ${reader.length - reader.offset}`,
+                    `skip() expected ${decodedLength} bytes, got ${remaining}`,
                 );
             }
 
@@ -115,8 +133,8 @@ export class Zed
         });
     }
 
-    gt(n: number): any {
-        return this.addTransform((value: number, reader) => {
+    gt(n: number | bigint): any {
+        return this.addTransform((value: number | bigint, reader) => {
             if (value > n) {
                 return value;
             }
@@ -124,8 +142,8 @@ export class Zed
         });
     }
 
-    lt(n: number): any {
-        return this.addTransform((value: number, reader) => {
+    lt(n: number | bigint): any {
+        return this.addTransform((value: number | bigint, reader) => {
             if (value < n) {
                 return value;
             }
@@ -133,8 +151,8 @@ export class Zed
         });
     }
 
-    gte(n: number): any {
-        return this.addTransform((value: number, reader) => {
+    gte(n: number | bigint): any {
+        return this.addTransform((value: number | bigint, reader) => {
             if (value >= n) {
                 return value;
             }
@@ -144,8 +162,8 @@ export class Zed
         });
     }
 
-    lte(n: number): any {
-        return this.addTransform((value: number, reader) => {
+    lte(n: number | bigint): any {
+        return this.addTransform((value: number | bigint, reader) => {
             if (value <= n) {
                 return value;
             }

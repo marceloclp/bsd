@@ -7,7 +7,7 @@ export class ZedError extends Error {
         /** The byte offset of the member that failed to decode. */
         public readonly offset: number,
         /** The path to the member that failed to decode. */
-        public readonly path: Array<string | number>,
+        public readonly path: Array<string | number | bigint>,
         message: string,
     ) {
         super(`+${offset}: ${joinPath(path)}: ${message}`);

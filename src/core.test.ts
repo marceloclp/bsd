@@ -10,8 +10,8 @@ import type {
     ZedStruct,
 } from "./zed";
 
-function numberSchema(): ZedNumber {
-    return new Zed(reader => reader.uint(8)) as ZedNumber;
+function numberSchema(): ZedNumber<number> {
+    return new Zed(reader => reader.uint(8)) as ZedNumber<number>;
 }
 
 function bytesSchema(length: number): ZedBytes {

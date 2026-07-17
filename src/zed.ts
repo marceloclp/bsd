@@ -13,6 +13,13 @@ type MaskOmit<T extends Record<string, unknown>, M extends Mask<T>> = {
     [K in keyof T as M[K] extends true ? never : K]: T[K];
 };
 
+export type ZedInfer<T> =
+    T extends Record<string, any>
+    ? { [K in keyof T]: ZedInfer<T[K]> }
+    : T extends (infer U)[]
+    ? ZedInfer<U>[]
+    : T;
+
 export type ZedUnwrap<T extends Record<string, ZedAny>> = {
     [K in keyof T]: T[K] extends ZedType<infer U> ? U : never;
 };
@@ -22,8 +29,8 @@ export type ZedInferNext<T> =
     ? ZedBytes
     : T extends readonly (infer U)[]
     ? ZedArray<U>
-    : T extends number
-    ? ZedNumber
+    : T extends number | bigint
+    ? ZedNumber<T>
     : T extends string
     ? ZedString
     : T extends Record<string, any>
@@ -90,9 +97,15 @@ export interface ZedType<T = any> {
      *   // Code starts from +1 + the next byte value:
      *   code: u8(),
      * });
+     *
+     * // Bigint lengths are supported as values or schemas:
+     * u8().skip(4n);
+     * u8().skip(u64());
      * ```
      */
-    skip(bytes: number | ZedNumber): ZedInferNext<T>;
+    skip(
+        bytes: number | bigint | ZedNumber<number> | ZedNumber<bigint>,
+    ): ZedInferNext<T>;
 
     /**
      * Performs a custom check on the decoded member. If the
@@ -170,7 +183,7 @@ export interface ZedType<T = any> {
     transform<R>(transform: ZedTransform<T, R>): ZedInferNext<R>;
 }
 
-export interface ZedNumber extends ZedType<number> {
+export interface ZedNumber<T extends number | bigint = number | bigint> extends ZedType<T> {
     /**
      * Checks if the decoded member is greater than the
      * provided value. This is syntax sugar for a custom
@@ -185,7 +198,7 @@ export interface ZedNumber extends ZedType<number> {
      * u8().gt(128);
      * ```
      */
-    gt(value: number): ZedNumber;
+    gt(value: T): ZedNumber<T>;
 
     /**
      * Checks if the decoded member is less than the
@@ -201,7 +214,7 @@ export interface ZedNumber extends ZedType<number> {
      * u8().lt(128);
      * ```
      */
-    lt(value: number): ZedNumber;
+    lt(value: T): ZedNumber<T>;
 
     /**
      * Checks if the decoded member is greater than or equal
@@ -217,7 +230,7 @@ export interface ZedNumber extends ZedType<number> {
      * u8().gte(128);
      * ```
      */
-    gte(value: number): ZedNumber;
+    gte(value: T): ZedNumber<T>;
 
     /**
      * Checks if the decoded member is less than or equal
@@ -233,7 +246,7 @@ export interface ZedNumber extends ZedType<number> {
      * u8().lte(128);
      * ```
      */
-    lte(value: number): ZedNumber;
+    lte(value: T): ZedNumber<T>;
 
     /**
      * Checks if the decoded member is positive. This is
@@ -248,7 +261,7 @@ export interface ZedNumber extends ZedType<number> {
      * u8().positive();
      * ```
      */
-    positive(): ZedNumber;
+    positive(): ZedNumber<T>;
 
     /**
      * Checks if the decoded member is negative. This is
@@ -263,7 +276,7 @@ export interface ZedNumber extends ZedType<number> {
      * u8().negative();
      * ```
      */
-    negative(): ZedNumber;
+    negative(): ZedNumber<T>;
 }
 
 export interface ZedString extends ZedType<string> {}
