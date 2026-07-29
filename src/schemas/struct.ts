@@ -1,9 +1,15 @@
-import type { BsdAny, BsdFor, BsdInfer, BsdShape } from "../bsd";
+import type { BsdAny, BsdFor, BsdInfer, BsdShape, BsdStruct } from "../bsd";
 import { BsdType } from "../bsd-type";
 
+/**
+ * Creates a struct schema.
+ *
+ * @param shape
+ * @returns
+ */
 export function struct<const S extends BsdShape>(
     shape: S,
-): BsdFor<{ -readonly [K in keyof S]: BsdInfer<S[K]> }> {
+): BsdStruct<{ -readonly [K in keyof S]: BsdInfer<S[K]> }> {
     const entries = Object.entries(shape) as [string, BsdAny][];
 
     return BsdType.make((reader) => {

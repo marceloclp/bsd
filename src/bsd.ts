@@ -18,8 +18,8 @@ export type BsdFor<T> = [T] extends [number | bigint]
     ? BsdNumber<Extract<T, number | bigint>>
     : [T] extends [Uint8Array]
       ? BsdBytes
-      : [T] extends [Record<string, any>]
-        ? BsdStruct<T>
+      : [T] extends [BsdShape]
+        ? BsdStruct<{ -readonly [K in keyof T]: BsdInfer<T[K]> }>
         : Bsd<T>;
 
 /** Resolves a `Bsd` inner type. */
@@ -334,7 +334,7 @@ export interface BsdBytes extends Bsd<Uint8Array> {
 
 type Mask<T extends BsdShape> = { [K in keyof T]?: true };
 type MaskOmit<T extends BsdShape, M extends Mask<T>> = {
-    [K in keyof M]: K extends keyof T ? T[K] : never;
+    [K in keyof T as K extends keyof M ? never : K]: T[K];
 };
 type MaskPick<T extends BsdShape, M extends Mask<T>> = {
     [K in keyof M]: K extends keyof T ? T[K] : never;
