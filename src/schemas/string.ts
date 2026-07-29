@@ -13,11 +13,9 @@ const _cstring = (reader: BsdReader) => {
     reader.byteOffset = Math.min(end + 1, reader.limit);
 
     return Buffer.from(buffer.subarray(start, end)).toString("utf8");
-}
+};
 
-/**
- * Reads a null-terminated UTF-8 string from a byte buffer.
- */
+/** Reads a null-terminated UTF-8 string from a byte buffer. */
 export function cstring(): Bsd<string> {
     return BsdType.make(_cstring);
 }

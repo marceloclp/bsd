@@ -57,9 +57,7 @@ export interface Bsd<T> {
 
     /**
      * Creates a new `Bsd<T>` schema that skips a fixed number of bytes after
-     * decoding.
-     *
-     * This is useful when you want to skip padding bytes.
+     * decoding. This is useful when you want to skip padding bytes.
      *
      * @example
      *     ```typescript
@@ -75,9 +73,7 @@ export interface Bsd<T> {
         byteLength: number | BsdNumber | ((reader: BsdReader) => BsdNumber),
     ): Bsd<T>;
 
-    advance(
-        fn: (value: T, reader: BsdReader) => number,
-    ): Bsd<T>;
+    advance(fn: (value: T, reader: BsdReader) => number): Bsd<T>;
 
     /**
      * Creates a new `Bsd<T>` schema which performs a check (a validation step).
@@ -88,18 +84,14 @@ export interface Bsd<T> {
 
     /**
      * Performs shallow equality and narrows the output to the literal value
-     * `U`.
-     *
-     * This is syntax sugar for `check()`.
+     * `U`. This is syntax sugar for `check()`.
      */
     is<const U extends T>(expected: U): BsdFor<U>;
 
     /**
      * Checks if the decoded value is one of the provided values. Any iterable
-     * is supported.
-     *
-     * If you are checking against very long list of items, it's best to use a
-     * `Set` or `Map` for constant lookup.
+     * is supported. If you are checking against very long list of items, it's
+     * best to use a `Set` or `Map` for constant lookup.
      *
      * @example
      *     ```typescript
@@ -122,7 +114,7 @@ export interface Bsd<T> {
      *         // Decodes the name as a UTF-8 string:
      *         name: bytes(32).transform(toUtf8),
      *     });
-     *     ```
+     *     ```;
      */
     transform<R>(transform: BsdTransform<T, R>): BsdFor<R>;
 
@@ -206,15 +198,17 @@ export interface BsdBytes extends Bsd<Uint8Array> {
      *   ```;
      */
     utf16le(): Bsd<string>;
+
+    slice(): any;
 }
 
 type Mask<T extends BsdShape> = {
     [K in keyof T]?: true;
-}
+};
 
 type Omit<T extends BsdShape, M extends Mask<T>> = {
     [K in keyof T]: T[K];
-}
+};
 
 export interface BsdStruct<T extends BsdShape = BsdShape> extends Bsd<T> {
     peek(): BsdStruct<T>;
@@ -268,7 +262,8 @@ export class BsdType<T> implements Bsd<T> {
 
     pad(fn: number | BsdTransform<T, number>): BsdFor<T> {
         return this.addModifier((value, reader) => {
-            reader.byteOffset += typeof fn === "function" ? fn(value, reader) : fn;
+            reader.byteOffset +=
+                typeof fn === "function" ? fn(value, reader) : fn;
             return value;
         });
     }
@@ -350,9 +345,10 @@ export class BsdType<T> implements Bsd<T> {
 
     pipe<const R extends BsdAny>(transform: BsdTransform<T, R> | R) {
         return this.addModifier((value, reader) => {
-            const schema = typeof transform === "function"
-                ? asInternal(transform(value, reader))
-                : asInternal(transform);
+            const schema =
+                typeof transform === "function"
+                    ? asInternal(transform(value, reader))
+                    : asInternal(transform);
             return schema.read(reader);
         }) as any;
     }

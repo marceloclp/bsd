@@ -181,6 +181,10 @@ export class BsdReader {
 
         return this.buffer.subarray(offset, offset + byteLength);
     }
+
+    fail(msg: string) {
+        return BsdIssue.from(this, msg);
+    }
 }
 
 function join(path: Path): string {

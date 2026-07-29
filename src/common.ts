@@ -2,7 +2,11 @@ import type { BsdAny, BsdInfer, BsdInternal, BsdNumber } from "./bsd";
 import type { BsdReader } from "./reader";
 
 export function toAscii(bytes: Uint8Array): string {
-    return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString("latin1");
+    return Buffer.from(
+        bytes.buffer,
+        bytes.byteOffset,
+        bytes.byteLength,
+    ).toString("latin1");
 }
 
 /** Converts bytes to same-valued Unicode code units. */

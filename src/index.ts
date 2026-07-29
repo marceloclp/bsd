@@ -20,7 +20,6 @@ export { literal, offset, eager, custom, find, padded } from "./schemas/common";
 export { array, repeat, repeatWhile } from "./schemas/array";
 export { cstring } from "./schemas/string";
 
-
 export type {
     BsdCheck,
     BsdTransform,
