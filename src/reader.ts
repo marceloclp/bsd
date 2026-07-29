@@ -1,5 +1,3 @@
-import type { BsdAny, BsdInfer } from "./bsd";
-
 type Path = Array<string | symbol | number>;
 
 export type BsdIntegerBits = 8 | 16 | 24 | 32;
@@ -187,15 +185,15 @@ export class BsdReader {
     }
 }
 
-function join(path: Path): string {
-    // We use `$` to represet the root:
-    let result = "$";
-    for (const segment of path) {
-        if (typeof segment === "number") {
-            result += `[${segment}]`;
-        } else {
-            result += `.${String(segment)}`;
-        }
-    }
-    return result;
-}
+// function join(path: Path): string {
+//     // We use `$` to represet the root:
+//     let result = "$";
+//     for (const segment of path) {
+//         if (typeof segment === "number") {
+//             result += `[${segment}]`;
+//         } else {
+//             result += `.${String(segment)}`;
+//         }
+//     }
+//     return result;
+// }

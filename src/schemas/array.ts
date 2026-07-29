@@ -1,11 +1,5 @@
-import {
-    BsdType,
-    type BsdAny,
-    type BsdFor,
-    type BsdInfer,
-    type BsdNumber,
-} from "../bsd";
-import { asInternal } from "../common";
+import type { BsdAny, BsdFor, BsdInfer, BsdNumber } from "../bsd";
+import { BsdType } from "../bsd-type";
 
 /**
  * Represents a fixed-length array. The length is the number of
@@ -37,15 +31,15 @@ export function array<const S extends BsdAny>(
     schema: S,
 ): BsdFor<BsdInfer<S>[]> {
     return BsdType.make((reader) => {
-        const schemaInternal = asInternal(schema);
-
-        const arrayLength =
-            typeof count === "number" ? count : asInternal(count).read(reader);
+        const s = schema["~type"];
+        // The fixed length of the array:
+        const n =
+            typeof count === "number" ? count : count["~type"].read(reader);
 
         const values: BsdInfer<S>[] = [];
-        for (let i = 0; i < arrayLength; i++) {
+        for (let i = 0; i < n; i++) {
             reader.path.push(i);
-            values.push(schemaInternal.read(reader));
+            values.push(s.read(reader));
             reader.path.pop();
         }
 
@@ -53,51 +47,29 @@ export function array<const S extends BsdAny>(
     });
 }
 
+/**
+ * Represents an array whose length can't be determined statically.
+ * This will repeat the schema until the current frame ends.
+ *
+ * ```typescript
+ * // A list of strings that consumes the remaining bytes:
+ * repeat(bytes(4).ascii());
+ *
+ * // The same list, but this time contained inside a frame:
+ * bytes(32).frame(repeat(bytes(4).ascii()));
+ * ```
+ */
 export function repeat<S extends BsdAny>(schema: S): BsdFor<BsdInfer<S>[]> {
     return BsdType.make((reader) => {
-        const schemaInternal = asInternal(schema);
+        const s = schema["~type"];
 
         const values: BsdInfer<S>[] = [];
         while (reader.byteOffset < reader.limit) {
             reader.path.push(values.length);
-            values.push(schemaInternal.read(reader));
+            values.push(s.read(reader));
             reader.path.pop();
         }
 
         return values;
     });
 }
-
-// export function repeatWhile<S extends BsdAny>(
-//     schema: S,
-//     until: (value: BsdInfer<S>, reader: BsdReader) => boolean,
-// ) {
-//     return BsdType.make((reader) => {
-//         const schemaInternal = asInternal(schema);
-
-//         const values: BsdInfer<S>[] = [];
-//         while (reader.byteOffset < reader.limit) {
-//             reader.path.push(values.length);
-
-//             const schemaOffset = reader.schemaOffset;
-//             const byteOffset = reader.byteOffset;
-
-//             const value = schemaInternal.read(reader);
-//             reader.path.pop();
-
-//             try {
-//                 if (!until(value, reader)) {
-//                     // Undo:
-//                     reader.schemaOffset = schemaOffset;
-//                     reader.byteOffset = byteOffset;
-//                     break;
-//                 }
-//             } catch {
-//                 reader.schemaOffset = schemaOffset;
-//                 reader.byteOffset = byteOffset;
-//             }
-//         }
-
-//         return values;
-//     });
-// }

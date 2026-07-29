@@ -15,15 +15,13 @@ export {
 } from "./schemas/number";
 export { struct } from "./schemas/struct";
 export { union } from "./schemas/union";
-export { bytes, remaining, reserved } from "./schemas/bytes";
-export { literal, offset, eager, custom, find, padded } from "./schemas/common";
-export { array, repeat, repeatWhile } from "./schemas/array";
-export { cstring } from "./schemas/string";
-
+export { bytes, remaining } from "./schemas/bytes";
+export { literal, offset, custom, find, padded } from "./schemas/common";
+export { array, repeat } from "./schemas/array";
 export type {
     BsdCheck,
-    BsdTransform,
-    BsdDecoder,
+    BsdMod,
+    BsdDecode,
     BsdAny,
     BsdFor,
     BsdInfer,

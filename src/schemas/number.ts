@@ -1,4 +1,5 @@
-import { BsdType, type Bsd, type BsdNumber } from "../bsd";
+import type { BsdFor } from "../bsd";
+import { BsdType } from "../bsd-type";
 import type { BsdReader } from "../reader";
 
 const _u8 = (reader: BsdReader) => reader.uint(8);
@@ -15,54 +16,54 @@ const _f32 = (reader: BsdReader) => reader.float(32);
 const _f64 = (reader: BsdReader) => reader.float(64);
 const _bool = (reader: BsdReader) => reader.bool();
 
-export function u8(): BsdNumber<number> {
-    return new BsdType(_u8) as unknown as BsdNumber<number>;
+export function u8(): BsdFor<number> {
+    return BsdType.make(_u8);
 }
 
-export function u16(): BsdNumber<number> {
-    return new BsdType(_u16) as unknown as BsdNumber<number>;
+export function u16(): BsdFor<number> {
+    return BsdType.make(_u16);
 }
 
-export function u24(): BsdNumber<number> {
-    return new BsdType(_u24) as unknown as BsdNumber<number>;
+export function u24(): BsdFor<number> {
+    return BsdType.make(_u24);
 }
 
-export function u32(): BsdNumber<number> {
-    return new BsdType(_u32) as unknown as BsdNumber<number>;
+export function u32(): BsdFor<number> {
+    return BsdType.make(_u32);
 }
 
-export function u64(): BsdNumber<bigint> {
-    return new BsdType(_u64) as unknown as BsdNumber<bigint>;
+export function u64(): BsdFor<bigint> {
+    return BsdType.make(_u64);
 }
 
-export function i8(): BsdNumber<number> {
-    return new BsdType(_i8) as unknown as BsdNumber<number>;
+export function i8(): BsdFor<number> {
+    return BsdType.make(_i8);
 }
 
-export function i16(): BsdNumber<number> {
-    return new BsdType(_i16) as unknown as BsdNumber<number>;
+export function i16(): BsdFor<number> {
+    return BsdType.make(_i16);
 }
 
-export function i24(): BsdNumber<number> {
-    return new BsdType(_i24) as unknown as BsdNumber<number>;
+export function i24(): BsdFor<number> {
+    return BsdType.make(_i24);
 }
 
-export function i32(): BsdNumber<number> {
-    return new BsdType(_i32) as unknown as BsdNumber<number>;
+export function i32(): BsdFor<number> {
+    return BsdType.make(_i32);
 }
 
-export function i64(): BsdNumber<bigint> {
-    return new BsdType(_i64) as unknown as BsdNumber<bigint>;
+export function i64(): BsdFor<bigint> {
+    return BsdType.make(_i64);
 }
 
-export function f32(): BsdNumber<number> {
-    return new BsdType(_f32) as unknown as BsdNumber<number>;
+export function f32(): BsdFor<number> {
+    return BsdType.make(_f32);
 }
 
-export function f64(): BsdNumber<number> {
-    return new BsdType(_f64) as unknown as BsdNumber<number>;
+export function f64(): BsdFor<number> {
+    return BsdType.make(_f64);
 }
 
-export function bool(): Bsd<boolean> {
-    return new BsdType(_bool);
+export function bool(): BsdFor<boolean> {
+    return BsdType.make(_bool);
 }

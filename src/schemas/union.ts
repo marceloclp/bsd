@@ -1,18 +1,17 @@
-import { BsdType, type BsdAny, type BsdFor, type BsdInfer } from "../bsd";
-import { asInternal } from "../common";
-import { BsdIssue } from "../reader";
+import type { BsdAny, BsdFor, BsdInfer } from "../bsd";
+import { BsdType } from "../bsd-type";
 
 export function union<const S extends readonly [BsdAny, BsdAny, ...BsdAny[]]>(
     ...schemas: S
 ): BsdFor<BsdInfer<S[number]>> {
-    return new BsdType((reader) => {
+    return BsdType.make((reader) => {
         const schemaOffset = reader.schemaOffset;
         const byteOffset = reader.byteOffset;
         const pathLength = reader.path.length;
 
         for (const schema of schemas) {
             try {
-                return asInternal(schema).read(reader);
+                return schema["~type"].read(reader);
             } catch {
                 // Reset the reader's state so we can try
                 // the next schema in the union:
@@ -24,6 +23,6 @@ export function union<const S extends readonly [BsdAny, BsdAny, ...BsdAny[]]>(
             }
         }
 
-        throw BsdIssue.from(reader, `union() failed to match any schema`);
+        throw reader.fail(`union() failed to match any schema`);
     }) as any;
 }

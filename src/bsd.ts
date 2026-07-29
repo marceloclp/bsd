@@ -1,16 +1,16 @@
-import { asInternal, toAscii, toLatin1, toUtf16le, toUtf8 } from "./common";
-import { BsdIssue, BsdReader } from "./reader";
+import type { BsdType } from "./bsd-type";
+import type { BsdReader } from "./reader";
 
-export type BsdCheck<T> = (value: T, reader: BsdReader) => boolean | void;
+/** Transform function signature, used to mutate the decoded value. */
+export type BsdMod<T, R> = (value: T, reader: BsdReader) => R;
+/** Check function signature, used to validate a schema. */
+export type BsdCheck<T> = BsdMod<T, boolean | void>;
+/** Decode function signature, entrypoint for a schema. */
+export type BsdDecode<T> = (reader: BsdReader) => T;
 
-export type BsdTransform<T, R> = (value: T, reader: BsdReader) => R;
-
-/** A custom schema decoder. */
-export type BsdDecoder<T> = (reader: BsdReader) => T;
-
-/** Any schema accepted by Eke combinators. */
-export type BsdAny = Bsd<any> | BsdBytes | BsdNumber | BsdStruct;
-
+/** Any BSD schema. */
+export type BsdAny = Bsd<any> | BsdNumber | BsdBytes | BsdStruct;
+/** `BsdStruct` decoded shape. */
 export type BsdShape = Record<string, any>;
 
 /** Returns the richest safe schema interface for a decoded value type. */
@@ -18,435 +18,359 @@ export type BsdFor<T> = [T] extends [number | bigint]
     ? BsdNumber<Extract<T, number | bigint>>
     : [T] extends [Uint8Array]
       ? BsdBytes
-      : Bsd<T>;
+      : [T] extends [Record<string, any>]
+        ? BsdStruct<T>
+        : Bsd<T>;
 
-/** Resolves a Bsd type to its inferred output type. */
-export type BsdInfer<S extends BsdAny> = S extends Bsd<infer T> ? T : never;
+/** Resolves a `Bsd` inner type. */
+export type BsdInfer<T> = T extends Bsd<infer U> ? U : T;
 
-/** Common immutable fluent API implemeted by every binary schema decoder. */
+export interface BsdDecodeOptions {
+    /**
+     * When set to true, the decoder will throw a `BsdIssue` if there are
+     * remaining bytes in the buffer after decoding.
+     */
+    strict?: boolean;
+}
+
 export interface Bsd<T> {
     /**
      * Decodes the complete input (all bytes).
      *
      * @returns {T} When the schema is successfully decoded.
      * @throws {DecodeError} When the schema is not satisfied.
-     * @throws {DecodeError} When there are trailling bytes.
      */
-    decode(input: Uint8Array): T;
-
-    tee(fn: (value: T, reader: BsdReader) => void): Bsd<T>;
-
-    pad(byteLength: number): BsdFor<T>;
-    pad(fn: (value: T, reader: BsdReader) => number): BsdFor<T>;
+    decode(input: Uint8Array, options?: BsdDecodeOptions): T;
 
     /**
-     * Creates a new `Bsd<T>` instance where decoding the schema will not
-     * advance the internal reader.
+     * Returns the decoded value without advancing the reader's cursor (byte
+     * offset).
      *
-     * @example
-     *     ```typescript
-     *   const Message = bsd.struct({
-     *     // Decode the message bytes using latin1:
-     *     ascii: bsd.bytes(24).latin1().skip(),
-     *     // Decode the same message bytes again, this time using utf8:
-     *     utf8: bsd.bytes(24).utf8(),
-     *   });
-     *   ```;
-     */
-    peek(): Bsd<T>;
-
-    /**
-     * Creates a new `Bsd<T>` schema that skips a fixed number of bytes after
-     * decoding. This is useful when you want to skip padding bytes.
+     * This is useful for inspecting certain values, or to consume the same
+     * range multiple times, with different transformations.
      *
-     * @example
-     *     ```typescript
-     *   const Item = bsd.struct({
-     *     // Decodes the item id, then skips 4 bytes of padding:
-     *     id: bsd.u32().skip(4),
-     *     // Grade is at +8 bytes:
-     *     grade: bsd.u8(),
-     *   });
-     *   ```;
+     * ```typescript
+     * // Composite ID of 24 low bits and 8 high bits:
+     * const Id = struct({
+     *     id: u32()
+     *         .peek()
+     *         .transform((v) => v & 0xffffff),
+     *     key: u32().transform((v) => v >>> 24),
+     * });
+     * // Inspecting a schema:
+     * const Data = struct({
+     *     rowsLength: u32().peek(),
+     *     rows: array(u32(), struct({})),
+     * });
+     * // Keeping both the raw data and the potentially
+     * // incorrect transformed data:
+     * const PossibleStr = struct({
+     *     raw: bytes(12).peek(),
+     *     value: bytes(12).ascii(),
+     * });
+     * ```
      */
-    skip(
-        byteLength: number | BsdNumber | ((reader: BsdReader) => BsdNumber),
-    ): Bsd<T>;
-
-    advance(fn: (value: T, reader: BsdReader) => number): Bsd<T>;
+    peek(): BsdFor<T>;
 
     /**
-     * Creates a new `Bsd<T>` schema which performs a check (a validation step).
-     * If the check returns `false`, the schema is rejected and a `DecodeError`
-     * is thrown. Returning `void` or `undefined` is equivalent to `true`.
+     * Pads the end of the schema by increasing the reader's byte offset. This
+     * is useful for skipping over padding bytes used for alignment.
+     *
+     * ```typescript
+     * // Each item is separated by 4 bytes:
+     * const ListItem = struct({}).pad(4);
+     * const List = array(10, ListItem);
+     * // List that might be padded depending on its length:
+     * const List = array(u32(), struct({})).pad((arr) => {
+     *     return arr.length ? 4 : 0;
+     * });
+     * ```
      */
-    check(check: BsdCheck<T>): Bsd<T>;
+    pad(bytes: number | BsdMod<T, number>): BsdFor<T>;
 
     /**
-     * Performs shallow equality and narrows the output to the literal value
-     * `U`. This is syntax sugar for `check()`.
+     * Performs a check. If the check function returns `false`, an `BsdIssue` is
+     * thrown. If the check function returns `true` or `undefined`, no error is
+     * thrown.
+     *
+     * Binary schemas shouldn't need to use checks. This feature is intended for
+     * use when decoding a schema whose shape is unknown (research purposes).
+     *
+     * If you require validation, you should pipe your decoded schema to a
+     * proper validation library.
+     *
+     * ```typescript
+     * // Checks that a value is within a range:
+     * const Length = u32().check((v) => v >= 0 && v < 1000);
+     * // Checks that a value is an enum:
+     * const Color = u8().check((v) => Colors.has(v));
+     * ```
+     *
+     * To use custom error messages, you should throw a BsdIssue by calling
+     * `reader.fail()`. The example below also illustrates why returning
+     * `undefined` is treated as a successful check.
+     *
+     * ```typescript
+     * const Color = u8().check((v, r) => {
+     *     if (!Colors.has(v)) {
+     *         throw r.fail(`Invalid color: ${v}`);
+     *     }
+     * });
+     * ```
+     */
+    check(check: BsdCheck<T>): BsdFor<T>;
+
+    /**
+     * Syntax sugar for shallow equality checks. This also performs type
+     * narrowing.
+     *
+     * ```typescript
+     * // Use for type narrowing:
+     * const Color: Bsd<Colors.Red> = u8().is(Colors.Red);
+     *
+     * // Use to describe rules:
+     * const Flag = u8().is(1);
+     * ```
      */
     is<const U extends T>(expected: U): BsdFor<U>;
 
     /**
-     * Checks if the decoded value is one of the provided values. Any iterable
-     * is supported. If you are checking against very long list of items, it's
-     * best to use a `Set` or `Map` for constant lookup.
+     * Syntax sugar for checking whether a value is included inside
+     * an iterable. You may use arrays, sets or maps. Prefer sets and
+     * maps over arrays when the list is large, as we can benefit from
+     * constant-time lookups.
      *
-     * @example
-     *     ```typescript
-     *   const Item = bsd.struct({
-     *     // Using an array:
-     *     type: bsd.u32().in([0, 1, 2, 3]),
-     *     // Using a set:
-     *     type: bsd.u32().in(new Set([0, 1, 2, 3])),
-     *   });
-     *   ```;
+     * Also performs type narrowing.
+     *
+     * ```typescript
+     * // Use for type narrowing:
+     * const Color: Bsd<Colors> = u8().in(Colors);
+     *
+     * // Use to describe enums:
+     * const Status: Bsd<"A" | "B"> = bytes(1).ascii().in(["A", "B"]);
+     * ```
      */
-    in<const U extends T>(values: Array<U> | Set<U> | Map<U, any>): BsdFor<U>;
+    in<const U extends T>(
+        values: Array<U> | Set<U> | Map<U, unknown>,
+    ): BsdFor<U>;
 
     /**
-     * Maps the decoded value to another output type.
+     * Maps the decoded value from the previous step to a new value.
      *
-     * @example
-     *     ```typescript
-     *     const Item = struct({
-     *         // Decodes the name as a UTF-8 string:
-     *         name: bytes(32).transform(toUtf8),
-     *     });
-     *     ```;
+     * ```typescript
+     * // A fixed-length UTF16-LE string whose length is twice
+     * // the value of its preceding length field:
+     * const Utf16LEString = bytes(u32().transform((x) => x * 2)).utf16le();
+     *
+     * // Unpack an integer into a float:
+     * const PackedFloat = u32().transform(unpack);
+     * ```
      */
-    transform<R>(transform: BsdTransform<T, R>): BsdFor<R>;
+    transform<U>(fn: BsdMod<T, U>): BsdFor<U>;
 
-    pipe<const R extends BsdAny>(transform: BsdTransform<T, R> | R): R;
+    /**
+     * Consumes the decoded value to generate a new schema.
+     * This is useful when working with variable-length data
+     * that has more than one control value.
+     *
+     * ```typescript
+     * // A null-terminated variable-length UTF16-LE string:
+     * const VariableUtf16LEString = find(u16(), (v) => v < 0x20)
+     *     .transform((v, r) => v - r.byteOffset)
+     *     .pipe((v) => bytes(v).utf16le());
+     * ```
+     */
+    pipe<const S extends BsdAny>(pipe: BsdMod<T, S> | S): BsdFor<BsdInfer<S>>;
+
+    readonly "~type": BsdType<T>;
 }
 
 export interface BsdNumber<
     T extends number | bigint = number | bigint,
 > extends Bsd<T> {
-    peek(): BsdNumber<T>;
-    skip(
-        byteLength: number | BsdNumber | ((reader: BsdReader) => BsdNumber),
-    ): BsdNumber<T>;
-    check(check: BsdCheck<T>): BsdNumber<T>;
-    gt(value: number | bigint): BsdNumber<T>;
-    gte(value: number | bigint): BsdNumber<T>;
-    lt(value: number | bigint): BsdNumber<T>;
-    lte(value: number | bigint): BsdNumber<T>;
-    positive(): BsdNumber<T>;
-    negative(): BsdNumber<T>;
+    /**
+     * Checks if the decoded numeric value is greater than the expected value.
+     *
+     * ```typescript
+     * const MinPrice = u8().gt(10);
+     * ```
+     */
+    gt(value: number | bigint): BsdFor<T>;
+
+    /**
+     * Checks if the decoded numeric value is greater than or equal to the
+     * expected value.
+     *
+     * ```typescript
+     * const MinPrice = u8().gte(10);
+     * ```
+     */
+    gte(value: number | bigint): BsdFor<T>;
+
+    /**
+     * Checks if the decoded numeric value is lesser than the expected value.
+     *
+     * ```typescript
+     * const MaxPrice = u8().lt(10);
+     * ```
+     */
+    lt(value: number | bigint): BsdFor<T>;
+
+    /**
+     * Checks if the decoded numeric value is lesser than or equal to the
+     * expected value.
+     *
+     * ```typescript
+     * const MaxPrice = u8().lte(10);
+     * ```
+     */
+    lte(value: number | bigint): BsdFor<T>;
+
+    /**
+     * Checks if the decoded numeric value is positive.
+     *
+     * ```typescript
+     * const Price = u8().positive();
+     * ```
+     */
+    positive(): BsdFor<T>;
+
+    /**
+     * Checks if the decoded numeric value is negative.
+     *
+     * ```typescript
+     * const Offset = u8().negative();
+     * ```
+     */
+    negative(): BsdFor<T>;
 }
 
 export interface BsdBytes extends Bsd<Uint8Array> {
-    peek(): BsdBytes;
-    skip(
-        byteLength: number | BsdNumber | ((reader: BsdReader) => BsdNumber),
-    ): BsdBytes;
-    check(check: BsdCheck<Uint8Array>): BsdBytes;
+    /**
+     * Decodes a schema inside a frame of bytes. This is useful
+     * when decoding arrays of variable-length rows.
+     *
+     * ```typescript
+     * // ListItem is a null-terminated string with variable length:
+     * const ListItem = find(u16(), (v) => v < 0x20)
+     *     .transform((v, r) => v - r.byteOffset)
+     *     .pipe((v) => bytes(v).utf16le());
+     *
+     * // List is an array of ListItems, where we only know the
+     * // total byte length of the list, not the individual items:
+     * const List = bytes(u32()).frame(repeat(ListItem));
+     * ```
+     *
+     * @param {S | BsdMod<Uint8Array, S>} schema The schema or a function that
+     *   returns the schema that will be decoded inside the frame
+     */
+    frame<const S extends BsdAny>(
+        schema: S | BsdMod<Uint8Array, S>,
+    ): BsdFor<BsdInfer<S>>;
 
-    frame<S extends BsdAny>(schema: S): S;
+    /**
+     * Returns a new `Uint8Array` view of the original `ArrayBuffer` store
+     * for this array, referencing the elements at begin, inclusive, up
+     * to end, exclusive.
+     *
+     * ```typescript
+     * // Removes left and right padding from a frame:
+     * const UnpaddedFrame = bytes(24).slice(4, 20);
+     * ```
+     *
+     * @param start The beginning of the specified portion of the array.
+     * @param end The end of the specified portion of the array. This is
+     *   exclusive of the element at the index 'end'.
+     */
+    slice(start?: number, end?: number): BsdFor<Uint8Array>;
+
+    /**
+     * By default, `bytes()` will return a zero-copy subarray. Mutating
+     * that subarray will also mutate the original buffer.
+     *
+     * For most cases, mutating the original buffer is fine, as the buffer
+     * will be discarded in favor of the decoded data. When you want to
+     * mutate the subarray without affecting the original buffer, you can
+     * call `copy()` to get a deep copy of the subarray.
+     */
+    copy(): BsdFor<Uint8Array>;
+
+    /**
+     * Marks this byte subarray as reserved bytes.
+     *
+     * This is useful when you still want to declaratively express the
+     * reserved bytes in the schema, for readability and documentation,
+     * but you do not care about the contents.
+     */
+    reserved(): BsdFor<void>;
 
     /**
      * Decodes the bytes as a strict seven-bits ASCII string.
      *
-     * @example
-     *     ```typescript
-     *   const Item = bsd.struct({
-     *     // Decodes the name bytes as an ASCII string:
-     *     name: bsd.bytes(32).ascii(),
-     *   });
-     *   ```;
+     * ```typescript
+     * const Header = bytes(4).ascii();
+     * ```
      */
-    ascii(): Bsd<string>;
+    ascii(): BsdFor<string>;
 
     /**
-     * Decodes the bytes by mapping each byte directly to the same-valued
-     * Unicode code unit.
+     * Decodes the bytes as a strict UTF-8 string.
      *
-     * @example
-     *     ```typescript
-     *   const Item = bsd.struct({
-     *     // Decodes the name bytes as a Latin-1 string:
-     *     name: bsd.bytes(32).latin1(),
-     *   });
-     *   ```;
+     * ```typescript
+     * const Name = bytes(u32()).utf8();
+     * ```
      */
-    latin1(): Bsd<string>;
+    utf8(): BsdFor<string>;
 
     /**
-     * Decodes the bytes as a strict UTF-8 string. Rejects malformed inputs.
+     * Decodes the bytes as a strict UTF-16 string.
      *
-     * @example
-     *     ```typescript
-     *   const Item = bsd.struct({
-     *     // Decodes the name bytes as a UTF-8 string:
-     *     name: bsd.bytes(32).utf8(),
-     *   });
-     *   ```;
+     * ```typescript
+     * const Name = bytes(u32()).utf16();
+     * ```
      */
-    utf8(): Bsd<string>;
-
-    /**
-     * Decodes the bytes as a little-endian UTF-16 string.
-     *
-     * @example
-     *     ```typescript
-     *   const Item = bsd.struct({
-     *     // Decodes the name bytes as a UTF-16 string:
-     *     name: bsd.bytes(32).utf16le(),
-     *   });
-     *   ```;
-     */
-    utf16le(): Bsd<string>;
-
-    slice(): any;
+    utf16(): BsdFor<string>;
 }
 
-type Mask<T extends BsdShape> = {
-    [K in keyof T]?: true;
+type Mask<T extends BsdShape> = { [K in keyof T]?: true };
+type MaskOmit<T extends BsdShape, M extends Mask<T>> = {
+    [K in keyof M]: K extends keyof T ? T[K] : never;
 };
-
-type Omit<T extends BsdShape, M extends Mask<T>> = {
-    [K in keyof T]: T[K];
+type MaskPick<T extends BsdShape, M extends Mask<T>> = {
+    [K in keyof M]: K extends keyof T ? T[K] : never;
 };
 
 export interface BsdStruct<T extends BsdShape = BsdShape> extends Bsd<T> {
-    peek(): BsdStruct<T>;
-    skip(
-        byteLength: number | BsdNumber | ((reader: BsdReader) => BsdNumber),
-    ): BsdStruct<T>;
-    check(check: BsdCheck<T>): BsdStruct<T>;
+    /**
+     * Removes the specified fields from the decoded data.
+     * This performs the operation in-place (the original object is
+     * modified, rather than returning a new object).
+     *
+     * ```typescript
+     * // Struct with an unknown field that we want to
+     * // express for the sake of readability, but we
+     * // do not wish to keep:
+     * const Body = struct({
+     *     field04: bytes(4).reserved(),
+     *     id: u32(),
+     * }).omit({ field04: true });
+     * ```
+     */
+    omit<M extends Mask<T>>(mask: M): BsdFor<MaskOmit<T, M>>;
 
-    omit<M extends Mask<T>>(mask: M): BsdStruct<Omit<T, M>>;
-    // pick<const K extends keyof T>()
-}
-
-export interface BsdInternal<T> {
-    read(reader: BsdReader): T;
-}
-
-export class BsdType<T> implements Bsd<T> {
-    constructor(
-        private readonly decoder: BsdDecoder<any>,
-        private readonly modifiers: readonly BsdTransform<any, any>[] = [],
-    ) {}
-
-    private read(reader: BsdReader) {
-        const initialOffset = reader.byteOffset;
-        reader.schemaOffset = initialOffset;
-
-        let value = this.decoder(reader);
-        for (const mod of this.modifiers) {
-            // Start each modifier from the initial offset
-            // (where the value was decoded from):
-            reader.schemaOffset = initialOffset;
-            value = mod(value, reader);
-        }
-
-        reader.schemaOffset = initialOffset;
-        return value;
-    }
-
-    decode(input: Uint8Array): T {
-        const reader = new BsdReader(input);
-        const value = this.read(reader);
-        return value;
-    }
-
-    tee(fn: BsdTransform<T, void>): Bsd<T> {
-        return this.addModifier((value, reader) => {
-            fn(value, reader);
-            return value;
-        });
-    }
-
-    pad(fn: number | BsdTransform<T, number>): BsdFor<T> {
-        return this.addModifier((value, reader) => {
-            reader.byteOffset +=
-                typeof fn === "function" ? fn(value, reader) : fn;
-            return value;
-        });
-    }
-
-    peek() {
-        return this.addModifier((value, reader) => {
-            // Undo the offset change after decoding:
-            reader.byteOffset = reader.schemaOffset;
-            // Forward the decoded value:
-            return value;
-        });
-    }
-
-    skip(byteLength: number | BsdNumber | ((reader: BsdReader) => BsdNumber)) {
-        return this.addModifier((value, reader) => {
-            const bytesSkipped =
-                typeof byteLength === "function"
-                    ? asInternal(byteLength(reader)).read(reader)
-                    : typeof byteLength === "object"
-                      ? asInternal(byteLength).read(reader)
-                      : byteLength;
-            // Add the skipped bytes to the reader's byte offset:
-            reader.byteOffset += Number(bytesSkipped);
-            // Forward the decoded value:
-            return value;
-        });
-    }
-
-    advance(fn: (value: T, reader: BsdReader) => number) {
-        return this.addModifier((value, reader) => {
-            reader.byteOffset += fn(value, reader);
-            return value;
-        });
-    }
-
-    check(check: BsdCheck<any>) {
-        return this.addModifier((value, reader) => {
-            if (check(value, reader) === false) {
-                // @todo replace with DecodeError
-                throw new Error();
-            }
-            return value;
-        });
-    }
-
-    is<const U extends T>(expected: U): BsdFor<U> {
-        return this.addModifier((value, reader) => {
-            if (value !== expected) {
-                throw BsdIssue.from(
-                    reader,
-                    `expected ${value} to be ${expected}`,
-                );
-            }
-            return value;
-        }) as unknown as BsdFor<U>;
-    }
-
-    in<const U extends T>(values: Array<U> | Set<U> | Map<U, any>) {
-        return this.addModifier((value, reader) => {
-            if (Array.isArray(values)) {
-                if (!values.includes(value))
-                    throw BsdIssue.from(
-                        reader,
-                        `expected ${value} to be in ${values}`,
-                    );
-            } else if (!values.has(value)) {
-                throw BsdIssue.from(
-                    reader,
-                    `expected ${value} to be in ${values}`,
-                );
-            }
-            return value;
-        }) as unknown as BsdFor<U>;
-    }
-
-    transform<R>(transform: BsdTransform<T, R>) {
-        return this.addModifier(transform) as unknown as BsdFor<R>;
-    }
-
-    pipe<const R extends BsdAny>(transform: BsdTransform<T, R> | R) {
-        return this.addModifier((value, reader) => {
-            const schema =
-                typeof transform === "function"
-                    ? asInternal(transform(value, reader))
-                    : asInternal(transform);
-            return schema.read(reader);
-        }) as any;
-    }
-
-    gt(expected: number | bigint) {
-        return this.addModifier((value: number | bigint, reader) => {
-            if (value <= expected) {
-                throw BsdIssue.from(
-                    reader,
-                    `expected ${value} to be greater than ${expected}`,
-                );
-            }
-            return value;
-        });
-    }
-
-    gte(expected: number | bigint) {
-        return this.addModifier((value: number | bigint, reader) => {
-            if (value < expected) {
-                throw BsdIssue.from(
-                    reader,
-                    `expected ${value} to be greater than or equal to ${expected}`,
-                );
-            }
-            return value;
-        });
-    }
-
-    lt(expected: number | bigint) {
-        return this.addModifier((value: number | bigint, reader) => {
-            if (value >= expected) {
-                throw BsdIssue.from(
-                    reader,
-                    `expected ${value} to be less than ${expected}`,
-                );
-            }
-            return value;
-        });
-    }
-
-    lte(expected: number | bigint) {
-        return this.addModifier((value: number | bigint, reader) => {
-            if (value > expected) {
-                throw BsdIssue.from(
-                    reader,
-                    `expected ${value} to be less than or equal to ${expected}`,
-                );
-            }
-            return value;
-        });
-    }
-
-    positive() {
-        return this.gt(0);
-    }
-
-    negative() {
-        return this.lt(0);
-    }
-
-    frame<S extends BsdAny>(schema: S): BsdFor<BsdInfer<S>> {
-        return this.addModifier((value) => {
-            return schema.decode(value);
-        }) as any;
-    }
-
-    ascii(): BsdFor<string> {
-        return this.addModifier(toAscii);
-    }
-
-    latin1(): BsdFor<string> {
-        return this.addModifier(toLatin1);
-    }
-
-    utf8(): BsdFor<string> {
-        return this.addModifier(toUtf8);
-    }
-
-    utf16le(): BsdFor<string> {
-        return this.addModifier(toUtf16le);
-    }
-
-    omit(mask: Record<string, boolean>): BsdAny {
-        const keys = Object.keys(mask);
-        return this.addModifier((value: Record<string, any>) => {
-            // We mutate the object in-place on purpose:
-            for (const k of keys) {
-                delete value[k];
-            }
-            return value;
-        });
-    }
-
-    private addModifier(transform: BsdTransform<any, any>): Bsd<any> {
-        return new BsdType(this.decoder, [...this.modifiers, transform]);
-    }
-
-    static make<T>(decoder: BsdDecoder<T>): BsdFor<T> {
-        return new BsdType(decoder) as unknown as BsdFor<T>;
-    }
+    /**
+     * Keeps only the specified fields in the decoded data.
+     * This performs the operation in-place (the original object
+     * is modified, rather than returning a new object).
+     *
+     * ```typescript
+     * // Struct where we only care about the `id` field:
+     * const Body = struct({
+     *     id: u32(),
+     *     age: u8(),
+     *     name: bytes(8).ascii(),
+     * }).pick({ id: true });
+     * ```
+     */
+    pick<M extends Mask<T>>(mask: M): BsdFor<MaskPick<T, M>>;
 }

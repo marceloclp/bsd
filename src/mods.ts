@@ -1,11 +1,4 @@
-import type {
-    BsdAny,
-    BsdCheck,
-    BsdInfer,
-    BsdMod,
-    BsdShape,
-    IBsdMod,
-} from "./bsd2";
+import type { BsdAny, BsdCheck, BsdInfer, BsdMod } from "./bsd";
 import type { BsdReader } from "./reader";
 
 export function reserve() {}
@@ -36,7 +29,9 @@ export function check<T>(fn: BsdCheck<T>) {
     };
 }
 
-export function inIter<T, const U extends T>(values: Array<U> | Set<U> | Map<U, any>) {
+export function inIter<T, const U extends T>(
+    values: Array<U> | Set<U> | Map<U, any>,
+) {
     return (value: T, reader: BsdReader): U => {
         if (Array.isArray(values)) {
             if (values.includes(value as U)) {
@@ -47,12 +42,16 @@ export function inIter<T, const U extends T>(values: Array<U> | Set<U> | Map<U, 
             if (values.has(value as U)) {
                 return value as U;
             }
-            throw reader.fail(`expected one of ${values.keys().toArray()}, got ${value}`);
+            throw reader.fail(
+                `expected one of ${values.keys().toArray()}, got ${value}`,
+            );
         } else if (values instanceof Map) {
             if (values.has(value as U)) {
                 return value as U;
             }
-            throw reader.fail(`expected one of ${values.keys().toArray()}, got ${value}`);
+            throw reader.fail(
+                `expected one of ${values.keys().toArray()}, got ${value}`,
+            );
         }
         return value as U;
     };
@@ -62,7 +61,7 @@ export function pipe<T, const U extends BsdAny>(pipe: U | BsdMod<T, U>) {
     return (value: T, reader: BsdReader): BsdInfer<U> => {
         const next = typeof pipe === "function" ? pipe(value, reader) : pipe;
         return next["~type"].read(reader);
-    }
+    };
 }
 
 export function gt<T extends number | bigint>(expected: number | bigint) {
@@ -70,8 +69,8 @@ export function gt<T extends number | bigint>(expected: number | bigint) {
         if (value > expected) {
             return value;
         }
-        throw reader.fail(`expected ${value} to be greater than ${expected}`)
-    }
+        throw reader.fail(`expected ${value} to be greater than ${expected}`);
+    };
 }
 
 export function gte<T extends number | bigint>(expected: number | bigint) {
@@ -79,8 +78,10 @@ export function gte<T extends number | bigint>(expected: number | bigint) {
         if (value >= expected) {
             return value;
         }
-        throw reader.fail(`expected ${value} to be greater than or equal to ${expected}`)
-    }
+        throw reader.fail(
+            `expected ${value} to be greater than or equal to ${expected}`,
+        );
+    };
 }
 
 export function lt<T extends number | bigint>(expected: number | bigint) {
@@ -88,8 +89,8 @@ export function lt<T extends number | bigint>(expected: number | bigint) {
         if (value < expected) {
             return value;
         }
-        throw reader.fail(`expected ${value} to be less than ${expected}`)
-    }
+        throw reader.fail(`expected ${value} to be less than ${expected}`);
+    };
 }
 
 export function lte<T extends number | bigint>(expected: number | bigint) {
@@ -97,8 +98,10 @@ export function lte<T extends number | bigint>(expected: number | bigint) {
         if (value <= expected) {
             return value;
         }
-        throw reader.fail(`expected ${value} to be less than or equal to ${expected}`)
-    }
+        throw reader.fail(
+            `expected ${value} to be less than or equal to ${expected}`,
+        );
+    };
 }
 
 export function eq<T>(expected: T) {
@@ -106,23 +109,24 @@ export function eq<T>(expected: T) {
         if (value === expected) {
             return value;
         }
-        throw reader.fail(`expected ${value} to be equal to ${expected}`)
-    }
+        throw reader.fail(`expected ${value} to be equal to ${expected}`);
+    };
 }
 
-export function frame<const U extends BsdAny>(schema: U | BsdMod<Uint8Array, U>) {
+export function frame<const U extends BsdAny>(
+    schema: U | BsdMod<Uint8Array, U>,
+) {
     return (value: Uint8Array, reader: BsdReader): BsdInfer<U> => {
-        const next = typeof schema === "function"
-            ? schema(value, reader)
-            : schema;
+        const next =
+            typeof schema === "function" ? schema(value, reader) : schema;
         return next["~type"].decode(value);
-    }
+    };
 }
 
 export function bslice(start?: number, end?: number) {
     return (value: Uint8Array): Uint8Array => {
         return value.subarray(start, end);
-    }
+    };
 }
 
 const utf8 = new TextDecoder("utf-8", { fatal: true });
@@ -146,7 +150,7 @@ export function omit(mask: Record<string, true>) {
             delete value[k];
         }
         return value;
-    }
+    };
 }
 
 export function pick(mask: Record<string, true>) {
@@ -157,5 +161,5 @@ export function pick(mask: Record<string, true>) {
             }
         }
         return value;
-    }
+    };
 }

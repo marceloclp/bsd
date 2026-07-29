@@ -11,6 +11,6 @@ export default defineConfig({
         descriptionWithDot: false,
         lineWrappingStyle: "balance",
     },
-    sortImports: true,
+    sortImports: {},
     tabWidth: 4,
 });

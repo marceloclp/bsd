@@ -7,11 +7,10 @@ import type {
     BsdFor,
     BsdInfer,
     BsdMod,
-    IBsdMod,
     BsdNumber,
     BsdShape,
     BsdStruct,
-} from "./bsd2";
+} from "./bsd";
 import {
     bslice,
     check,
@@ -38,10 +37,7 @@ import { BsdReader } from "./reader";
 export class BsdType<T> implements Bsd<T> {
     constructor(
         private readonly decoder: BsdDecode<any>,
-        private readonly modifiers: readonly (
-            | BsdMod<any, any>
-            | IBsdMod<any, any>
-        )[] = [],
+        private readonly modifiers: readonly BsdMod<any, any>[] = [],
     ) {}
 
     /** @see {@link Bsd} */
@@ -215,7 +211,11 @@ export class BsdType<T> implements Bsd<T> {
         return this.addModifier(pick(mask));
     }
 
-    private addModifier<R>(mod: BsdMod<any, R> | IBsdMod<any, R>): BsdFor<R> {
+    private addModifier<R>(mod: BsdMod<any, R>): BsdFor<R> {
         return new BsdType(this.decoder, [...this.modifiers, mod]) as any;
+    }
+
+    static make<T>(decoder: BsdDecode<T>): BsdFor<T> {
+        return new BsdType(decoder, []) as any;
     }
 }

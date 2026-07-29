@@ -1,46 +1,45 @@
-import {
-    BsdType,
-    type Bsd,
-    type BsdBytes,
-    type BsdInternal,
-    type BsdNumber,
-} from "../bsd";
-import type { BsdReader } from "../reader";
+import type { BsdFor, BsdNumber } from "../bsd";
+import { BsdType } from "../bsd-type";
 
 /**
- * Helper utility for resolving a dynamic byte length, which automatically
- * pushes a reserved `_length` keyword to the reader's path.
+ * Creates a zero-copy subarray from the current buffer.
+ *
+ * ```typescript
+ * // Returns a Uint8Array view of the next 32 bytes:
+ * bytes(32);
+ *
+ * // Returns a Uint8Array copy of the next 32 bytes:
+ * bytes(32).copy();
+ *
+ * // Returns a Uint8Array view of the next <n> bytes:
+ * bytes(u32());
+ *
+ * // Returns the UTF-8 decoded string:
+ * bytes(32).utf8();
+ * ```
  */
-export function resolveLength(length: number | BsdNumber, reader: BsdReader) {
-    if (typeof length === "number") {
-        return length;
-    }
+export function bytes(byteLength: number | BsdNumber): BsdFor<Uint8Array> {
+    return BsdType.make((reader) => {
+        let n: number;
+        if (typeof byteLength === "number") {
+            n = byteLength;
+        } else {
+            reader.path.push("_length");
+            n = byteLength["~type"].read(reader);
+            reader.path.pop();
+        }
 
-    try {
-        reader.path.push("_length");
-        const schema = length as unknown as BsdInternal<number>;
-        return schema.read(reader);
-    } finally {
-        reader.path.pop();
-    }
-}
-
-export function bytes(byteLength: number | BsdNumber): BsdBytes {
-    return new BsdType((reader) => {
-        const length = resolveLength(byteLength, reader);
-        return reader.bytes(length);
-    }) as unknown as BsdBytes;
-}
-
-const _remaining = (reader: BsdReader) => reader.bytes(reader.remaining);
-
-export function remaining(_trailingBytes = 0): BsdBytes {
-    return new BsdType(_remaining) as unknown as BsdBytes;
-}
-
-export function reserved(byteLength: number): Bsd<void> {
-    return new BsdType((reader) => {
-        // Ee only want to advance the reader here:
-        reader.bytes(byteLength);
+        return reader.bytes(n);
     });
+}
+
+/**
+ * Returns a zero-copy subarray from the current buffer, with
+ * the remaining, un-read bytes. Optionally, a number of trailing
+ * bytes can be specified to exclude from the result.
+ */
+export function remaining(trailingBytes = 0): BsdFor<Uint8Array> {
+    return BsdType.make((reader) =>
+        reader.bytes(reader.remaining - trailingBytes),
+    );
 }
