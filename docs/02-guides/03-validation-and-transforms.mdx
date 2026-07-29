@@ -1,96 +1,114 @@
 ---
 title: Validation and transforms
-description: Validate, reshape, skip, and revisit decoded values.
+description: Validate, reshape, skip, and look ahead while decoding.
 sidebar:
-  icon: filter
+    icon: filter
 ---
 
-Schema methods are immutable: every call returns a new schema with an extended
-transformation pipeline.
+Schema methods are immutable. Each method returns a schema with the additional
+behavior while the original remains reusable.
 
-## Built-in checks
+## Equality and membership
 
-Use `is()` for equality and `in()` for membership. Number schemas also provide
-comparison helpers.
+`is()` validates `Object.is` equality. `oneOf()` validates membership in a
+non-empty list using the same comparison. Both narrow the inferred TypeScript
+result; notably, `NaN` matches itself and `0` differs from `-0`.
 
 ```ts
-import { u8 } from "./src/types";
+import { u8 } from "@marceloclp/eke";
+import type { Infer } from "@marceloclp/eke";
 
 const marker = u8().is(0x7f);
-const status = u8().in([0, 1, 2]);
-const bounded = u8().gte(10).lte(20);
-```
+const status = u8().oneOf(0, 1, 2);
 
-`in()` accepts an array, `Set`, or `Map`. For large collections, use a set or map
-to avoid a linear array lookup.
+type Marker = Infer<typeof marker>; // 0x7f
+type Status = Infer<typeof status>; // 0 | 1 | 2
+```
 
 ## Custom checks
 
-`check()` receives the decoded value and active reader. Return `false` to reject
-the value, return nothing to accept it, or call `reader.addIssue()` to report a
+`check()` receives the decoded value and active `BsdReader`. Return `false` to
+reject the value, return nothing to accept it, or call `reader.fail()` with a
 specific message.
 
 ```ts
-import { u16 } from "./src/types";
+import { u16 } from "@marceloclp/eke";
 
 const even = u16().check((value, reader) => {
-  if (value % 2 !== 0) {
-    reader.addIssue("expected an even value");
-  }
+    if (value % 2 !== 0) {
+        reader.fail("expected an even value");
+    }
 });
 ```
 
-A named function that returns `false` uses its function name as the issue text.
+Multiple checks may be supplied in one call and run in declaration order.
 
 ```ts
-const even = u16().check(function isEven(value) {
-  return value % 2 === 0;
-});
+const smallEven = u16().check(
+    (value) => value <= 100,
+    (value) => value % 2 === 0,
+);
 ```
 
 ## Transform values
 
-`transform()` maps a decoded value to a new result and updates the schema's
-TypeScript API to match that result.
+`transform()` maps a decoded value to a new result and returns the specialized
+schema interface appropriate for that result.
 
 ```ts
-import { u16 } from "./src/types";
+import { u16 } from "@marceloclp/eke";
 
 const flags = u16().transform((value) => ({
-  readable: (value & 0b001) !== 0,
-  writable: (value & 0b010) !== 0,
-  executable: (value & 0b100) !== 0,
+    readable: (value & 0b001) !== 0,
+    writable: (value & 0b010) !== 0,
 }));
-
-const decoded = flags.decode(Uint8Array.of(0b011, 0));
-// { readable: true, writable: true, executable: false }
 ```
 
-Thrown `Error` instances become contextual `ZedError` failures. Throwing an
-existing `ZedError` preserves it.
-
-## Skip bytes
-
-`skip()` advances past padding or reserved data after decoding the current
-value. It accepts a static number or bigint, or another numeric schema.
+`flatMap()` instead uses the decoded value to select and consume the following
+schema. Use it for tagged unions and sizes encoded before their payload.
 
 ```ts
-import { u8 } from "./src/types";
+import { bytes, u16 } from "@marceloclp/eke";
 
-const valueWithPadding = u8().skip(2);
-
-valueWithPadding.decode(Uint8Array.of(
-  7,       // decoded result
-  0xff,    // skipped
-  0xff,    // skipped
-)); // 7
+const sizedPayload = u16().flatMap((byteLength) => bytes(byteLength));
 ```
 
-Dynamic skip schemas consume their own bytes before the skipped range.
+## Skip and peek
 
-## Revisit a byte range
+`skip(byteLength)` advances over arbitrary bytes after decoding a value and
+retains that value as the result.
 
-`undo()` resets the reader offset to the position where the current schema
-started. It is intended for composed schemas that need to interpret the same
-bits more than once. A top-level schema still has to consume the complete input,
-so `undo()` is normally paired with a subsequent schema that rereads the range.
+```ts
+import { struct, u8 } from "@marceloclp/eke";
+
+const header = struct({
+    id: u8().skip(3),
+    code: u8(),
+});
+```
+
+`peek()` decodes a schema and restores the reader's cursor, frame, position,
+and path afterward, including when decoding fails. It is useful when the same
+bytes contribute to more than one field.
+
+```ts
+const flagsAndRaw = struct({
+    lowBits: u8()
+        .peek()
+        .transform((value) => value & 0x0f),
+    raw: u8(),
+});
+```
+
+At the reader level, `reader.peek(schema)` provides the same non-consuming
+behavior inside `custom()`, `defer()`, checks, and transforms.
+
+## Select fields
+
+`BsdStruct.pick(...keys)` and `BsdStruct.omit(...keys)` return new decoded
+objects and preserve exact property types.
+
+```ts
+const publicHeader = header.pick("id");
+const withoutCode = header.omit("code");
+```

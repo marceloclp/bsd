@@ -1,230 +1,197 @@
-import { Buffer } from "node:buffer";
-import { ZedError } from "./error";
+import type { BsdAny, BsdInfer } from "./bsd";
 
-/** Integer widths supported by Eke's number-backed readers. */
-type IntegerBits = 8 | 16 | 24 | 32;
-/** Big-integer widths supported by Eke's bigint-backed readers. */
-type BigIntegerBits = 64;
-/** IEEE-754 widths supported by Eke's float reader. */
-type FloatBits = 32 | 64;
+type Path = Array<string | symbol | number>;
 
-export class ZedReader {
-	constructor(bytes: Uint8Array) {
-		this.buffer = bytes;
-		this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-		this.byteBuffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-		this.length = bytes.length;
-	}
+export type BsdIntegerBits = 8 | 16 | 24 | 32;
+export type BsdBigIntegerBits = 64;
+export type BsdFloatBits = 32 | 64;
 
-	/** Input bytes being decoded; schemas read this value but never mutate it. */
-	public readonly buffer: Uint8Array;
-	/** A view scoped to exactly the input bytes. */
-	public readonly view: DataView;
-	/** A zero-copy Buffer view used for fast Latin-1 decoding. */
-	private readonly byteBuffer: Buffer;
+export class BsdIssue extends Error {
+    public override readonly name = "BsdIssue";
 
-	/** The path to the member currently being decoded. */
-	public path: Array<string | number | bigint> = [];
-	/** The starting offset of the member currently being decoded. */
-	public position: number = 0;
-	/** The current offset within the buffer (how many were bytes consumed). */
-	public offset: number = 0;
-	/** Exclusive boundary imposed by the innermost framed schema. */
-	public length: number;
+    constructor(
+        /** Offset to the schema that caused the issue. */
+        public readonly schemaOffset: number,
+        /** Offset to the byte that caused the issue. */
+        public readonly byteOffset: number,
+        /** Path to the schema that caused the issue. */
+        public readonly path: Path,
+        message: string,
+    ) {
+        super(message);
+    }
 
-	/** Reads a little-endian unsigned integer, advancing by default. */
-	uint(bits: IntegerBits, advance = true) {
-		const start = this.offset;
-		const end = start + bits / 8;
-		if (!Number.isSafeInteger(start) || start < 0) {
-			this.addIssue(`u${bits}() cannot read from invalid offset ${start}`);
-		}
-		if (!Number.isSafeInteger(this.length) || this.length < 0) {
-			this.addIssue(`u${bits}() cannot read with invalid limit ${this.length}`);
-		}
-		if (end > this.length || end > this.buffer.length) {
-			this.addIssue(`u${bits}() out of bounds`);
-		}
+    static from(reader: BsdReader, msg: string) {
+        return new BsdIssue(
+            reader.schemaOffset,
+            reader.byteOffset,
+            reader.path,
+            msg,
+        );
+    }
+}
 
-		let value: number;
-		switch (bits) {
-			case 8:
-				value = this.view.getUint8(start);
-				break;
-			case 16:
-				value = this.view.getUint16(start, true);
-				break;
-			case 24:
-				value = this.view.getUint16(start, true)
-					| (this.view.getUint8(start + 2) << 16);
-				break;
-			case 32:
-				value = this.view.getUint32(start, true);
-				break;
-		}
-		if (advance) this.offset = end;
-		return value;
-	}
+export class BsdReader {
+    /** Input bytes. Schemas never copy this array. */
+    public readonly buffer: Uint8Array;
 
-	/** Reads a little-endian signed integer, advancing by default. */
-	int(bits: IntegerBits, advance = true) {
-		const start = this.offset;
-		const end = start + bits / 8;
-		if (!Number.isSafeInteger(start) || start < 0) {
-			this.addIssue(`i${bits}() cannot read from invalid offset ${start}`);
-		}
-		if (!Number.isSafeInteger(this.length) || this.length < 0) {
-			this.addIssue(`i${bits}() cannot read with invalid limit ${this.length}`);
-		}
-		if (end > this.length || end > this.buffer.length) {
-			this.addIssue(`i${bits}() out of bounds`);
-		}
+    /** DataView scoped to exactly the input byte range. */
+    public readonly view: DataView;
 
-		const value =
-			this.buffer[start]! |
-			(bits >= 16 ? this.buffer[start + 1]! << 8 : 0) |
-			(bits >= 24 ? this.buffer[start + 2]! << 16 : 0) |
-			(bits === 32 ? this.buffer[start + 3]! << 24 : 0);
-		const shift = 32 - bits;
-		const signed = (value << shift) >> shift;
-		if (advance) this.offset = end;
-		return signed;
-	}
+    /** Path to the current schema being decoded. */
+    public readonly path: Path = [];
 
-	/** Reads a little-endian unsigned bigint, advancing by default. */
-	biguint(bits: BigIntegerBits, advance = true) {
-		const start = this.offset;
-		const end = start + bits / 8;
-		if (!Number.isSafeInteger(start) || start < 0) {
-			this.addIssue(`u${bits}() cannot read from invalid offset ${start}`);
-		}
-		if (!Number.isSafeInteger(this.length) || this.length < 0) {
-			this.addIssue(`u${bits}() cannot read with invalid limit ${this.length}`);
-		}
-		if (end > this.length || end > this.buffer.length) {
-			this.addIssue(`u${bits}() out of bounds`);
-		}
+    /** Exclusive boundary of the active frame. */
+    public readonly limit: number;
 
-		const value = this.view.getBigUint64(start, true);
-		if (advance) this.offset = end;
-		return value;
-	}
+    /** Starting offset of the current schema being decoded. */
+    public schemaOffset = 0;
 
-	/** Reads a little-endian signed bigint, advancing by default. */
-	bigint(bits: BigIntegerBits, advance = true) {
-		const start = this.offset;
-		const end = start + bits / 8;
-		if (!Number.isSafeInteger(start) || start < 0) {
-			this.addIssue(`i${bits}() cannot read from invalid offset ${start}`);
-		}
-		if (!Number.isSafeInteger(this.length) || this.length < 0) {
-			this.addIssue(`i${bits}() cannot read with invalid limit ${this.length}`);
-		}
-		if (end > this.length || end > this.buffer.length) {
-			this.addIssue(`i${bits}() out of bounds`);
-		}
+    /** Current absolute cursor within `buffer`. */
+    public byteOffset = 0;
 
-		const value = this.view.getBigInt64(start, true);
-		if (advance) this.offset = end;
-		return value;
-	}
+    /** Number of bytes available in the active frame. */
+    public get remaining() {
+        return this.limit - this.byteOffset;
+    }
 
-	/** Reads a little-endian IEEE-754 float, advancing by default. */
-	float(bits: FloatBits, advance = true) {
-		const start = this.offset;
-		const end = start + bits / 8;
-		if (!Number.isSafeInteger(start) || start < 0) {
-			this.addIssue(`f${bits}() cannot read from invalid offset ${start}`);
-		}
-		if (!Number.isSafeInteger(this.length) || this.length < 0) {
-			this.addIssue(`f${bits}() cannot read with invalid limit ${this.length}`);
-		}
-		if (end > this.length || end > this.buffer.length) {
-			this.addIssue(`f${bits}() out of bounds`);
-		}
+    constructor(buffer: Uint8Array) {
+        this.buffer = buffer;
+        this.limit = buffer.byteLength;
+        this.view = new DataView(
+            buffer.buffer,
+            buffer.byteOffset,
+            buffer.byteLength,
+        );
+    }
 
-		const value = bits === 32
-			? this.view.getFloat32(start, true)
-			: this.view.getFloat64(start, true);
-		if (advance) this.offset = end;
-		return value;
-	}
+    uint(bits: BsdIntegerBits, advance = true): number {
+        const offset = this.byteOffset;
 
-	/** Reads `bytes` as one-byte character codes, advancing by default. */
-	ascii(bytes: number, advance = true) {
-		if (!Number.isSafeInteger(bytes) || bytes < 0) {
-			this.addIssue(`ascii() requires a non-negative byte count; got ${bytes}`);
-		}
+        if (advance) {
+            this.byteOffset += bits / 8;
+        }
 
-		const start = this.offset;
-		const end = start + bytes;
-		if (!Number.isSafeInteger(start) || start < 0) {
-			this.addIssue(`ascii() cannot read from invalid offset ${start}`);
-		}
-		if (!Number.isSafeInteger(this.length) || this.length < 0) {
-			this.addIssue(`ascii() cannot read with invalid limit ${this.length}`);
-		}
-		if (end > this.length || end > this.buffer.length) {
-			this.addIssue(`ascii() out of bounds`);
-		}
+        switch (bits) {
+            case 8:
+                return this.view.getUint8(offset);
+            case 16:
+                return this.view.getUint16(offset, true);
+            case 24:
+                return this.view.getUint32(offset, true) & 0xffffff;
+            case 32:
+                return this.view.getUint32(offset, true);
+        }
+    }
 
-		const value = bytes === 0
-			? ""
-			: bytes === 1
-				? String.fromCharCode(this.buffer[start]!)
-				: this.byteBuffer.toString("latin1", start, end);
-		if (advance) this.offset = end;
-		return value;
-	}
+    int(bits: BsdIntegerBits, advance = true): number {
+        const offset = this.byteOffset;
 
-	/** Reads `bytes` as UTF-8 text, advancing by default. */
-	utf8(bytes: number, advance = true) {
-		if (!Number.isSafeInteger(bytes) || bytes < 0) {
-			this.addIssue(`utf8() requires a non-negative byte count; got ${bytes}`);
-		}
+        if (advance) {
+            this.byteOffset += bits / 8;
+        }
 
-		const start = this.offset;
-		const end = start + bytes;
-		if (!Number.isSafeInteger(start) || start < 0) {
-			this.addIssue(`utf8() cannot read from invalid offset ${start}`);
-		}
-		if (!Number.isSafeInteger(this.length) || this.length < 0) {
-			this.addIssue(`utf8() cannot read with invalid limit ${this.length}`);
-		}
-		if (end > this.length || end > this.buffer.length) {
-			this.addIssue(`utf8() out of bounds`);
-		}
+        switch (bits) {
+            case 8:
+                return this.view.getInt8(offset);
+            case 16:
+                return this.view.getInt16(offset, true);
+            case 24:
+                return this.view.getInt32(offset, true) & 0xffffff;
+            case 32:
+                return this.view.getInt32(offset, true);
+        }
+    }
 
-		const value = this.byteBuffer.toString("utf8", start, end);
-		if (advance) this.offset = end;
-		return value;
-	}
+    biguint(bits: BsdBigIntegerBits, advance = true): bigint {
+        const offset = this.byteOffset;
 
-	/** Reads `bytes` as little-endian UTF-16 text, advancing by default. */
-	utf16le(bytes: number, advance = true) {
-		if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes % 2 !== 0) {
-			this.addIssue(`utf16le() requires a non-negative, even byte count; got ${bytes}`);
-		}
+        if (advance) {
+            this.byteOffset += bits / 8;
+        }
 
-		const start = this.offset;
-		const end = start + bytes;
-		if (!Number.isSafeInteger(start) || start < 0) {
-			this.addIssue(`utf16le() cannot read from invalid offset ${start}`);
-		}
-		if (!Number.isSafeInteger(this.length) || this.length < 0) {
-			this.addIssue(`utf16le() cannot read with invalid limit ${this.length}`);
-		}
-		if (end > this.length || end > this.buffer.length) {
-			this.addIssue(`utf16le() out of bounds`);
-		}
+        switch (bits) {
+            case 64:
+                return this.view.getBigUint64(offset, true);
+        }
+    }
 
-		const value = this.byteBuffer.toString("utf16le", start, end);
-		if (advance) this.offset = end;
-		return value;
-	}
+    bigint(bits: BsdBigIntegerBits, advance = true): bigint {
+        const offset = this.byteOffset;
 
-	/** Throws an `EkeError` with the current offset and path context. */
-	addIssue(message: string): never {
-		throw new ZedError(this.position, this.path, message);
-	}
+        if (advance) {
+            this.byteOffset += bits / 8;
+        }
+
+        switch (bits) {
+            case 64:
+                return this.view.getBigInt64(offset, true);
+        }
+    }
+
+    float(bits: BsdFloatBits, advance = true): number {
+        const offset = this.byteOffset;
+
+        if (this.remaining < bits / 8) {
+            throw BsdIssue.from(this, `float(${bits}) out of bounds`);
+        }
+
+        if (advance) {
+            this.byteOffset += bits / 8;
+        }
+
+        switch (bits) {
+            case 32:
+                return this.view.getFloat32(offset, true);
+            case 64:
+                return this.view.getFloat64(offset, true);
+        }
+    }
+
+    bool(advance = true): boolean {
+        const offset = this.byteOffset;
+
+        if (this.remaining < 1) {
+            throw BsdIssue.from(this, `bool() out of bounds`);
+        }
+
+        if (advance) {
+            this.byteOffset += 1;
+        }
+
+        const flag = this.view.getUint8(offset);
+
+        if (flag !== 0 && flag !== 1) {
+            throw BsdIssue.from(this, `bool() expected 0 or 1, got ${flag}`);
+        }
+
+        return flag === 1;
+    }
+
+    bytes(byteLength: number, advance = true): Uint8Array {
+        const offset = this.byteOffset;
+
+        if (this.remaining < byteLength) {
+            throw BsdIssue.from(this, `bytes(${byteLength}) out of bounds`);
+        }
+
+        if (advance) {
+            this.byteOffset += byteLength;
+        }
+
+        return this.buffer.subarray(offset, offset + byteLength);
+    }
+}
+
+function join(path: Path): string {
+    // We use `$` to represet the root:
+    let result = "$";
+    for (const segment of path) {
+        if (typeof segment === "number") {
+            result += `[${segment}]`;
+        } else {
+            result += `.${String(segment)}`;
+        }
+    }
+    return result;
 }

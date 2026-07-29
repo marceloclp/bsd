@@ -1,87 +1,110 @@
 ---
 title: Quickstart
-description: Install the project and decode your first binary value.
+description: Install Eke and decode your first binary value.
 sidebar:
-  icon: rocket
-  order: 1
+    icon: rocket
+    order: 1
 ---
 
 <Steps>
-  <Step title="Install dependencies">
-    Eke currently runs from a repository checkout and uses Bun for development.
-
+  <Step title="Install Eke">
     ```bash
-    bun install
+    bun add @marceloclp/eke
     ```
+
+    Eke is an ESM package and ships its TypeScript declarations with the
+    JavaScript build.
+
   </Step>
   <Step title="Create a schema">
-    Add `playground.ts` at the repository root:
-
     ```ts
-    import { u16 } from "./src/types";
+    import { array, struct, u8, u16 } from "@marceloclp/eke";
+    import type { Infer } from "@marceloclp/eke";
 
-    const version = u16();
-    const decoded = version.decode(Uint8Array.of(0x02, 0x00));
+    const packet = struct({
+      version: u8().is(1),
+      samples: array(u8(), u16()),
+    });
 
-    console.log(decoded); // 2
+    type Packet = Infer<typeof packet>;
     ```
+
   </Step>
-  <Step title="Run it">
-    ```bash
-    bun run playground.ts
+  <Step title="Decode bytes">
+    ```ts
+    const decoded: Packet = packet.decode(
+      Uint8Array.of(1, 2, 10, 0, 20, 0),
+    );
+
+    console.log(decoded);
+    // { version: 1, samples: [10, 20] }
     ```
+
   </Step>
 </Steps>
 
-## How decoding works
+## Complete-input decoding
 
-Calling a constructor such as `u16()` creates a schema. Calling `decode()` on
-that schema creates a reader for the supplied bytes, consumes the value, applies
-each chained validation or transformation, and verifies that no bytes remain.
+Calling `decode()` creates a `BsdReader`, decodes the schema, and verifies that
+the final cursor equals the input boundary.
 
 ```ts
-import { u8 } from "./src/types";
+import { u8 } from "@marceloclp/eke";
 
-u8().decode(Uint8Array.of(7));       // 7
-u8().decode(Uint8Array.of(7, 8));    // throws: one byte remains
-u8().decode(Uint8Array.of());        // throws: out of bounds
+u8().decode(Uint8Array.of(7)); // 7
+u8().decode(Uint8Array.of(7, 8)); // throws: trailing byte
+u8().decode(Uint8Array.of()); // throws: out of bounds
 ```
 
-## Add validation
+Nested schemas are checked against their active `frame()` boundary. The outer
+`decode()` still enforces complete consumption of the whole input.
 
-Number schemas expose comparison helpers. They return a new schema, so the
-original remains reusable.
+## Handle contextual errors
 
 ```ts
-import { u8 } from "./src/types";
+import { DecodeError, array, u8 } from "@marceloclp/eke";
 
-const anyByte = u8();
-const percentage = anyByte.gte(0).lte(100);
-
-percentage.decode(Uint8Array.of(85));  // 85
-percentage.decode(Uint8Array.of(101)); // throws EkeError
+try {
+    array(3, u8().lte(10)).decode(Uint8Array.of(1, 99, 3));
+} catch (error) {
+    if (error instanceof DecodeError) {
+        console.error(error.offset); // 1
+        console.error(error.path); // [1]
+        console.error(error.message);
+    }
+}
 ```
 
-## Decode repeated values
+## Transform into application types
 
-Use `array()` for a fixed number of values or pass a numeric schema when the
-input contains its own element count.
+`transform()` changes both the decoded result and its inferred type.
 
 ```ts
-import { array, u8, u16 } from "./src/types";
+import { u16 } from "@marceloclp/eke";
 
-const fixed = array(2, u16());
-fixed.decode(Uint8Array.of(1, 0, 2, 0)); // [1, 2]
+const flags = u16().transform((value) => ({
+    readable: (value & 0b001) !== 0,
+    writable: (value & 0b010) !== 0,
+    executable: (value & 0b100) !== 0,
+}));
 
-const counted = array(u8(), u16());
-counted.decode(Uint8Array.of(2, 1, 0, 2, 0)); // [1, 2]
+flags.decode(Uint8Array.of(0b011, 0));
+// { readable: true, writable: true, executable: false }
 ```
 
 <CardGroup cols={2}>
-  <Card title="Number schemas" href="/guides/numbers" icon="hash">
-    Review widths, return types, and byte order.
-  </Card>
-  <Card title="Validation and transforms" href="/guides/validation-and-transforms" icon="filter">
-    Refine decoded values and produce application types.
-  </Card>
+    <Card
+        title="Compose layouts"
+        href="/guides/arrays-and-dynamic-values"
+        icon="list"
+    >
+        Learn arrays, repeats, frames, and runtime selection.
+    </Card>
+    <Card
+        title="Reader state"
+        href="/reference/errors-and-reader"
+        icon="scan-line"
+    >
+        Build specialized decoders with the public reader.
+    </Card>
 </CardGroup>

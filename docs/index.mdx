@@ -2,61 +2,69 @@
 title: Eke
 description: Type-safe, composable binary decoding for TypeScript.
 sidebar:
-  label: Introduction
-  icon: binary
-  order: 0
+    label: Introduction
+    icon: binary
+    order: 0
 ---
 
-Eke turns byte layouts into small, composable schemas. Define how a value is
-encoded, decode a `Uint8Array`, and keep the result type all the way through
-validation and transformation.
+Eke turns binary layouts into small, composable schemas. Define how bytes are
+decoded, compose those definitions into application values, and retain the
+inferred TypeScript type throughout.
 
 ```ts
-import { u16 } from "./src/types";
+import { bytes, struct, u8, u16 } from "@marceloclp/eke";
+import type { Infer } from "@marceloclp/eke";
 
-const port = u16().gte(1).lte(65_535);
-const value = port.decode(Uint8Array.of(0x90, 0x1f));
+const message = struct({
+    version: u8().is(1),
+    body: bytes(u16()).utf8(),
+});
 
-console.log(value); // 8080
+type Message = Infer<typeof message>;
+
+const value: Message = message.decode(Uint8Array.of(1, 2, 0, 0x6f, 0x6b));
+// { version: 1, body: "ok" }
 ```
 
-All built-in numeric readers are little-endian. A schema succeeds only when it
-consumes the complete input, which catches truncated data as well as unexpected
-trailing bytes.
+All built-in numeric decoders are little-endian. A top-level `decode()` succeeds
+only when it consumes the complete input. Truncation, unexpected trailing
+bytes, and validation failures throw `DecodeError` with a byte offset and path.
 
 <CardGroup cols={2}>
-  <Card title="Quickstart" href="/quickstart" icon="rocket">
-    Decode your first value from a repository checkout.
-  </Card>
-  <Card title="Numbers" href="/guides/numbers" icon="hash">
-    Choose an integer or floating-point schema.
-  </Card>
-  <Card title="Arrays and dynamic values" href="/guides/arrays-and-dynamic-values" icon="list">
-    Decode repeated and length-prefixed data.
-  </Card>
-  <Card title="API reference" href="/reference/api" icon="braces">
-    See the current schemas and chainable methods.
-  </Card>
+    <Card title="Quickstart" href="/quickstart" icon="rocket">
+        Install Eke and decode your first binary value.
+    </Card>
+    <Card title="Numbers" href="/guides/numbers" icon="hash">
+        Choose integer and floating-point schemas.
+    </Card>
+    <Card
+        title="Arrays and dynamic values"
+        href="/guides/arrays-and-dynamic-values"
+        icon="list"
+    >
+        Decode collections and input-dependent layouts.
+    </Card>
+    <Card title="API reference" href="/reference/api" icon="braces">
+        See the complete package surface and signatures.
+    </Card>
 </CardGroup>
 
 ## Why Eke
 
-- **Composable schemas.** Build larger decoders from focused primitives.
-- **Typed results.** Numeric width, `bigint`, arrays, and transformed values
-  remain visible to TypeScript.
-- **Contextual failures.** Decode errors carry the byte offset and nested path.
-- **Explicit control.** Skip padding, inspect the active reader, or choose the
-  next schema at runtime.
+- **Composable schemas.** Reuse primitives in arrays, structs, frames, unions,
+  and runtime-selected layouts.
+- **Precise types.** `Infer` preserves literal checks, bigint widths, nested
+  structs, and transformed values.
+- **Contextual failures.** `DecodeError` identifies both the byte offset and the
+  nested field or array index.
+- **Open decoder state.** `BsdReader` exposes its cursor, active frame, path,
+  input views, and low-level readers for specialized binary formats.
+- **Portable runtime.** The package is ESM-only, dependency-free, and operates
+  on `Uint8Array` without Node-specific APIs.
 
-:::note
-Eke is under active development and is not published to a package registry yet.
-The examples in these docs use imports from the current repository checkout.
-:::
+## Naming
 
-## Current scope
-
-The current implementation includes signed and unsigned integers, IEEE-754
-floats, static and length-prefixed arrays, runtime-resolved schemas, validation,
-and transformations. Struct and byte-string interfaces exist in the type layer,
-but public constructors for them have not landed yet and are intentionally not
-documented as usable APIs.
+Public schema interfaces use the `Bsd` prefix, short for **binary schema
+decoder**: `BsdSchema`, `BsdNumber`, `BsdBytes`, and `BsdStruct`. Constructors
+stay concise (`u16()`, `bytes()`, `struct()`) because they are the API used most
+often when declaring a layout.

@@ -1,89 +1,246 @@
 ---
 title: API reference
-description: Constructors, schema methods, and inferred types in the current Eke implementation.
+description: Complete constructors, schema interfaces, and inferred types.
 sidebar:
-  label: API
-  icon: braces
+    label: API
+    icon: braces
 ---
 
-## Numeric constructors
-
-Import the current constructors from `src/types.ts`.
-
-| Function | Return value | Description |
-| --- | --- | --- |
-| `u8()` | `ZedNumber<number>` | Unsigned 8-bit integer |
-| `u16()` | `ZedNumber<number>` | Unsigned 16-bit integer |
-| `u24()` | `ZedNumber<number>` | Unsigned 24-bit integer |
-| `u32()` | `ZedNumber<number>` | Unsigned 32-bit integer |
-| `u64()` | `ZedNumber<bigint>` | Unsigned 64-bit integer |
-| `i8()` | `ZedNumber<number>` | Signed 8-bit integer |
-| `i16()` | `ZedNumber<number>` | Signed 16-bit integer |
-| `i24()` | `ZedNumber<number>` | Signed 24-bit integer |
-| `i32()` | `ZedNumber<number>` | Signed 32-bit integer |
-| `i64()` | `ZedNumber<bigint>` | Signed 64-bit integer |
-| `f32()` | `ZedNumber<number>` | IEEE-754 32-bit float |
-| `f64()` | `ZedNumber<number>` | IEEE-754 64-bit float |
-
-Every constructor reads little-endian data.
-
-## `array(n, type)`
-
-Decodes `type` repeatedly and returns an array of its decoded values.
+Import every public API from the package root:
 
 ```ts
-function array<T extends ZedAny>(
-  n: ZedNumber | number | bigint,
-  type: T,
-): ZedArray<ZedInfer<T>>;
+import { struct, u16 } from "@marceloclp/eke";
+import type { BsdSchema, Infer } from "@marceloclp/eke";
 ```
 
-- A number or bigint creates a fixed-length array.
-- A `ZedNumber` is decoded from the input and becomes the element count.
-- A failure inside an element includes its index in the error path.
-
-## `eager(value, type)`
-
-Decodes a controlling value, builds the following schema at runtime, and
-returns only the following schema's output.
-
-```ts
-function eager<T1 extends ZedAny, T2 extends ZedAny>(
-  value: T1 | ((reader: ZedReader) => T1),
-  type: (value: ZedInfer<T1>, reader: ZedReader) => T2,
-): ZedInferNext<ZedInfer<T2>>;
-```
-
-Both callbacks receive the active reader. The resolver form of `value` is useful
-for lookahead; the `type` callback is useful for length-prefixed or tagged data.
-
-## Common schema methods
-
-All `ZedType` schemas provide these methods.
-
-| Method | Result |
-| --- | --- |
-| `decode(bytes)` | Decodes a complete `Uint8Array` or throws `ZedError` |
-| `undo()` | Resets the offset to this member's starting position |
-| `skip(bytes)` | Advances after the member by a static or decoded byte count |
-| `check(callback)` | Adds custom validation |
-| `is(expected)` | Requires shallow equality |
-| `in(values)` | Requires membership in an array, set, or map |
-| `transform(callback)` | Maps the result and returns a schema for its new type |
-
-## Number schema methods
-
-`ZedNumber` adds `gt()`, `gte()`, `lt()`, `lte()`, `positive()`, and
-`negative()`. Comparison arguments use `number` for schemas up through 32 bits
-and `bigint` for `u64()` and `i64()`.
+There is no default export and no legacy compatibility namespace.
 
 ## Type helpers
 
-The type layer in `src/zed.ts` exports:
+```ts
+type BsdAny = BsdSchema<any>;
 
-- `ZedInfer<T>` recursively resolves schemas and nested values.
-- `ZedUnwrap<T>` resolves every schema in a record.
-- `ZedInferNext<T>` maps a transformed result back to its specialized schema
-  interface.
-- `ZedDecoder<T>`, `ZedCheck<T>`, and `ZedTransform<T, R>` describe callbacks.
-- `ZedAny` is the union of supported schema interfaces.
+type Infer<S extends BsdAny> = S extends BsdSchema<infer T> ? T : never;
+
+type BsdFor<T> = [T] extends [number | bigint]
+    ? BsdNumber<Extract<T, number | bigint>>
+    : [T] extends [Uint8Array]
+      ? BsdBytes<Extract<T, Uint8Array>>
+      : BsdSchema<T>;
+
+type BsdKind<S extends BsdAny> =
+    S extends BsdNumber<infer T>
+        ? BsdNumber<T>
+        : S extends BsdBytes<infer T>
+          ? BsdBytes<T>
+          : S extends BsdStruct<infer T>
+            ? BsdStruct<T>
+            : BsdSchema<Infer<S>>;
+
+type BsdPathSegment = PropertyKey;
+type BsdCheck<T> = (value: T, reader: BsdReader) => boolean | void;
+type BsdTransform<T, R> = (value: T, reader: BsdReader) => R;
+type BsdDecoder<T> = (reader: BsdReader) => T;
+type BsdShape = Readonly<Record<PropertyKey, BsdAny>>;
+```
+
+`BsdSchema<T>` is the base schema interface. `BsdNumber<T>`, `BsdBytes<T>`, and
+`BsdStruct<T>` preserve operations specific to numeric, byte, and object
+results. `BsdFor<T>` selects the richest safe interface for a value, while
+`BsdKind<S>` preserves only a schema's built-in specialization and `Infer<S>`
+extracts its decoded value. `BsdReader` is the public mutable decoder state.
+
+The package also exports the callback and shape helpers used in public
+signatures: `BsdCheck<T>`, `BsdTransform<T, R>`, `BsdDecoder<T>`,
+`BsdPathSegment`, and `BsdShape`.
+
+## Numeric constructors
+
+| Function | Return type         | Description             |
+| -------- | ------------------- | ----------------------- |
+| `u8()`   | `BsdNumber<number>` | Unsigned 8-bit integer  |
+| `u16()`  | `BsdNumber<number>` | Unsigned 16-bit integer |
+| `u24()`  | `BsdNumber<number>` | Unsigned 24-bit integer |
+| `u32()`  | `BsdNumber<number>` | Unsigned 32-bit integer |
+| `u64()`  | `BsdNumber<bigint>` | Unsigned 64-bit integer |
+| `i8()`   | `BsdNumber<number>` | Signed 8-bit integer    |
+| `i16()`  | `BsdNumber<number>` | Signed 16-bit integer   |
+| `i24()`  | `BsdNumber<number>` | Signed 24-bit integer   |
+| `i32()`  | `BsdNumber<number>` | Signed 32-bit integer   |
+| `i64()`  | `BsdNumber<bigint>` | Signed 64-bit integer   |
+| `f32()`  | `BsdNumber<number>` | IEEE-754 32-bit float   |
+| `f64()`  | `BsdNumber<number>` | IEEE-754 64-bit float   |
+
+All numeric constructors are little-endian.
+
+## Primitive and byte constructors
+
+```ts
+function bool(): BsdSchema<boolean>;
+
+function bytes(byteLength: number | BsdSchema<number>): BsdBytes;
+
+function remaining(trailingBytes?: number): BsdBytes;
+
+function reserved(
+    byteLength: number,
+    expectedByte?: number,
+): BsdSchema<undefined>;
+```
+
+- `bool()` accepts an encoded zero or one.
+- `bytes()` returns a zero-copy `Uint8Array` view. A schema length is consumed
+  before the byte range.
+- `remaining()` reads to the active boundary while optionally leaving a fixed
+  number of trailing bytes for the next schema.
+- `reserved()` consumes a fixed range and validates every byte against
+  `expectedByte`, which defaults to zero.
+
+`BsdBytes<T extends Uint8Array = Uint8Array>` preserves branded byte-view
+types and provides:
+
+| Method      | Result              | Behavior                                    |
+| ----------- | ------------------- | ------------------------------------------- |
+| `ascii()`   | `BsdSchema<string>` | Strict 7-bit ASCII; bytes above `0x7f` fail |
+| `latin1()`  | `BsdSchema<string>` | One Unicode code unit per byte              |
+| `utf8()`    | `BsdSchema<string>` | Strict UTF-8; malformed input fails         |
+| `utf16le()` | `BsdSchema<string>` | Little-endian UTF-16 decoding               |
+
+## Collections and structs
+
+```ts
+function array<S extends BsdAny>(
+    count: number | BsdSchema<number>,
+    element: S,
+): BsdSchema<Infer<S>[]>;
+
+function repeat<S extends BsdAny>(element: S): BsdSchema<Infer<S>[]>;
+
+function struct<const S extends Readonly<Record<PropertyKey, BsdAny>>>(
+    shape: S,
+): BsdStruct<{
+    -readonly [K in keyof S]: Infer<S[K]>;
+}>;
+```
+
+`array()` decodes a known count. `repeat()` decodes until the current frame
+boundary and requires each element to advance. `struct()` decodes keys in
+property enumeration order and adds the active key to the error path.
+
+`BsdStruct<T>` adds `pick(...keys)` and `omit(...keys)`. Both return a new object
+without mutating the result of the original struct.
+
+```ts
+interface BsdStruct<T extends object> extends BsdSchema<T> {
+    pick<const K extends keyof T>(...keys: K[]): BsdStruct<Pick<T, K>>;
+    omit<const K extends keyof T>(...keys: K[]): BsdStruct<Omit<T, K>>;
+}
+```
+
+## Runtime composition
+
+```ts
+function union<const S extends readonly [BsdAny, BsdAny, ...BsdAny[]]>(
+    ...schemas: S
+): BsdFor<Infer<S[number]>>;
+
+function constant<const T>(value: T): BsdFor<T>;
+
+function offset(): BsdNumber<number>;
+
+function defer<S extends BsdAny>(select: (reader: BsdReader) => S): BsdKind<S>;
+
+function frame<S extends BsdAny>(
+    byteLength: number | ((reader: BsdReader) => number),
+    schema: S,
+): BsdKind<S>;
+
+function custom<T>(decode: (reader: BsdReader) => T): BsdFor<T>;
+```
+
+- `union()` tries branches in order. Only `DecodeError` rejects a branch;
+  reader state is restored before the next attempt.
+- `constant()` and `offset()` return zero-width values.
+- `defer()` selects a schema before it consumes bytes.
+- `frame()` installs an exact child boundary using a length relative to the
+  current cursor.
+- `custom()` creates a schema from the public low-level reader.
+
+The `defer()` selector and dynamic `frame()` length resolver are non-consuming:
+they may inspect the reader or use `reader.peek()`, but must not leave any
+mutable reader state changed.
+
+## `BsdSchema<T>` methods
+
+| Method                | Behavior                                                      |
+| --------------------- | ------------------------------------------------------------- |
+| `decode(input)`       | Decode a complete `Uint8Array`                                |
+| `peek()`              | Decode and then restore all mutable reader state              |
+| `skip(byteLength)`    | Skip arbitrary bytes after this result                        |
+| `check(...checks)`    | Run custom validation callbacks in order                      |
+| `is(expected)`        | Validate `Object.is` equality and narrow to one literal       |
+| `oneOf(...values)`    | Validate `Object.is` membership and narrow to a literal union |
+| `transform(callback)` | Map this result to an application value                       |
+| `flatMap(callback)`   | Consume this result, then decode its selected schema          |
+
+Callbacks receive the active `BsdReader` as their final argument.
+
+The exact base signatures are:
+
+```ts
+interface BsdSchema<T> {
+    readonly ["@marceloclp/eke/schema/v1"]: true;
+    decode(input: Uint8Array): T;
+    peek(): BsdSchema<T>;
+    skip(byteLength: number): BsdSchema<T>;
+    check(...checks: BsdCheck<T>[]): BsdSchema<T>;
+    is<const U extends T>(expected: U): BsdFor<U>;
+    oneOf<const U extends readonly [T, ...T[]]>(
+        ...values: U
+    ): BsdFor<U[number]>;
+    transform<R>(transform: BsdTransform<T, R>): BsdFor<R>;
+    flatMap<N extends number | bigint>(
+        next: (value: T, reader: BsdReader) => BsdNumber<N>,
+    ): BsdNumber<N>;
+    flatMap<B extends Uint8Array>(
+        next: (value: T, reader: BsdReader) => BsdBytes<B>,
+    ): BsdBytes<B>;
+    flatMap<O extends object>(
+        next: (value: T, reader: BsdReader) => BsdStruct<O>,
+    ): BsdStruct<O>;
+    flatMap<S extends BsdAny>(
+        next: (value: T, reader: BsdReader) => S,
+    ): BsdSchema<Infer<S>>;
+}
+```
+
+`BsdNumber`, `BsdBytes`, and `BsdStruct` redeclare `peek`, `skip`, and `check`
+to retain their own built-in specialization. Fresh schemas deliberately do
+not claim arbitrary properties attached to a schema object. Create schemas
+with the package factories or `custom()` rather than implementing
+`BsdSchema` as a plain object.
+
+## `BsdNumber<T>` methods
+
+`BsdNumber<T>` adds `gt()`, `gte()`, `lt()`, `lte()`, `positive()`, and
+`negative()`. Comparison values are `number` for number-backed schemas and
+`bigint` for `u64()` and `i64()`.
+
+```ts
+interface BsdNumber<T extends number | bigint> extends BsdSchema<T> {
+    gt(value: T extends bigint ? bigint : number): BsdNumber<T>;
+    gte(value: T extends bigint ? bigint : number): BsdNumber<T>;
+    lt(value: T extends bigint ? bigint : number): BsdNumber<T>;
+    lte(value: T extends bigint ? bigint : number): BsdNumber<T>;
+    positive(): BsdNumber<T>;
+    negative(): BsdNumber<T>;
+}
+```
+
+## Length rules
+
+Static lengths and counts are validated when their schema is constructed.
+Decoded lengths are validated with the active error context. They must be
+nonnegative safe integers; invalid static values throw `RangeError`, while
+invalid decoded values throw `DecodeError`. A schema-backed count or byte
+length is decoded under the synthetic `_length` path segment.

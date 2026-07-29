@@ -1,20 +1,37 @@
 {
-  "name": "@marceloclp/zed",
-  "module": "index.ts",
-  "type": "module",
-  "scripts": {
-    "bench:reader": "bun run bench/reader.bench.ts",
-    "docs:dev": "bun --bun blume dev",
-    "docs:build": "bun --bun blume build",
-    "docs:preview": "bun --bun blume preview",
-    "docs:check": "bun --bun blume check",
-    "docs:validate": "bun --bun blume validate"
-  },
-  "devDependencies": {
-    "@types/bun": "latest",
-    "blume": "^1.0.4"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
-  }
+    "name": "@marceloclp/bsd",
+    "version": "0.1.0",
+    "description": "Type-safe, composable binary decoding for TypeScript.",
+    "files": [
+        "dist",
+        "README.md",
+        "docs"
+    ],
+    "type": "module",
+    "main": "src/index.ts",
+    "publishConfig": {
+        "access": "public"
+    },
+    "scripts": {
+        "build": "rm -rf dist && bun build ./index.ts --outdir ./dist --target browser --format esm --sourcemap=external && tsc -p tsconfig.build.json && tsc -p tsconfig.package-smoke.json && bun run ./scripts/package-smoke.ts",
+        "test": "bun test",
+        "typecheck": "tsc --noEmit",
+        "prepack": "bun run build",
+        "prepublishOnly": "bun run typecheck && bun test",
+        "bench:reader": "bun run bench/reader.bench.ts",
+        "docs:dev": "bun --bun blume dev",
+        "docs:build": "bun --bun blume build --isolated",
+        "docs:check": "bun --bun blume check",
+        "docs:validate": "bun --bun blume validate",
+        "lint": "bun --bun oxlint -c oxlint.config.ts",
+        "format": "bun --bun oxfmt -c oxfmt.config.ts"
+    },
+    "devDependencies": {
+        "@types/bun": "latest",
+        "blume": "^1.0.4",
+        "oxfmt": "^0.61.0",
+        "oxlint": "^1.76.0",
+        "oxlint-tsgolint": "^7.0.2001",
+        "typescript": "^7.0.2"
+    }
 }
