@@ -43,25 +43,54 @@ jobs:
                   bun test
                   bun run verify:package
 
-            - name: Bump patch version
+            - name: Select release version
               id: version
               shell: bash
               run: |
-                  version="$(npm version patch --no-git-tag-version)"
+                  package_name="$(node -p "require('./package.json').name")"
+                  current_version="$(node -p "require('./package.json').version")"
+                  published_versions="$(npm view "$package_name" versions --json)"
+
+                  if PUBLISHED_VERSIONS="$published_versions" CURRENT_VERSION="$current_version" node -e '
+                    const versions = JSON.parse(process.env.PUBLISHED_VERSIONS);
+                    process.exit([versions].flat().includes(process.env.CURRENT_VERSION) ? 0 : 1);
+                  '; then
+                    version="$(npm version patch --no-git-tag-version)"
+                    echo "changed=true" >> "$GITHUB_OUTPUT"
+                  else
+                    version="v$current_version"
+                    echo "changed=false" >> "$GITHUB_OUTPUT"
+                  fi
+
                   echo "version=$version" >> "$GITHUB_OUTPUT"
 
             - name: Commit and tag version
               env:
                   VERSION: ${{ steps.version.outputs.version }}
+                  VERSION_CHANGED: ${{ steps.version.outputs.changed }}
+              shell: bash
               run: |
                   git config user.name "github-actions[bot]"
                   git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-                  git add package.json
-                  git commit -m "chore(release): ${VERSION}"
-                  git tag "${VERSION}"
-                  git push origin HEAD:master --follow-tags
+
+                  if [[ "$VERSION_CHANGED" == "true" ]]; then
+                    git add package.json
+                    git commit -m "chore(release): ${VERSION}"
+                  fi
+
+                  if git rev-parse --verify --quiet "refs/tags/$VERSION"; then
+                    if [[ "$(git rev-list -n 1 "$VERSION")" != "$(git rev-parse HEAD)" ]]; then
+                      echo "Tag $VERSION already exists on a different commit" >&2
+                      exit 1
+                    fi
+                  else
+                    git tag --annotate "$VERSION" --message "Release $VERSION"
+                  fi
+
+                  git push origin HEAD:master "$VERSION"
 
             - name: Publish package
-              run: bun publish
+              run: npm publish
+              timeout-minutes: 5
               env:
-                  NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
