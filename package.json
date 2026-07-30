@@ -1,6 +1,6 @@
 {
     "name": "@marceloclp/bsd",
-    "version": "0.1.3",
+    "version": "0.1.4",
     "description": "Type-safe, composable binary decoding for TypeScript.",
     "repository": {
         "type": "git",
