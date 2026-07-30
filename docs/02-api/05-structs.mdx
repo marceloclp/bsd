@@ -1,0 +1,60 @@
+---
+title: Structs
+description: Decode ordered fields into typed objects.
+sidebar:
+  icon: braces
+---
+
+`struct(shape)` decodes object entries in declaration order. Keys are appended
+to the active error path; values form the inferred result.
+
+```ts
+const User = struct({
+  version: u8().is(1),
+  id: u16(),
+  name: bytes(u8()).utf8(),
+});
+```
+
+Structs are schemas and compose recursively:
+
+```ts
+const QuestId = struct({
+  group: u16(),
+  number: u16(),
+});
+
+const QuestList = struct({
+  id: u16(),
+  quests: array(u32(), QuestId),
+});
+```
+
+## Field projection
+
+Structs can be projected to retain or omit a subset of fields.
+
+| Method        | Description           |
+| ------------- | --------------------- |
+| `.pick(mask)` | Retains selected keys |
+| `.omit(mask)` | Removes selected keys |
+
+This is useful when you want to preserve the declarative nature
+of the schema, for readability purposes, but do not need certain
+fields to be present in the decoded value. In the example below,
+the last 12 bytes are reserved for the footer.
+
+Keeping the `footer` field in the struct ensures the schema is
+as close as possible to the actual data layout.
+
+```ts
+const Table = struct({
+  magic: bytes(4).ascii().is("PABR"),
+  rows: array(u32(), u16()),
+  footer: bytes(12).reserved(),
+}).omit({ magic: true, footer: true });
+// { rows: number[] }
+```
+
+Structs support all [schema modifiers](/api/modifiers). Low-level decoders
+belong in [`custom()`](/api/misc#custom).

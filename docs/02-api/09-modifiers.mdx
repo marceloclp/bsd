@@ -1,0 +1,144 @@
+---
+title: Modifiers
+description: Validate, transform, compose, and control cursor behavior after decoding.
+sidebar:
+  icon: workflow
+---
+
+Modifiers derive a schema from another schema. They execute after the base
+decoder, from left to right, and do not mutate the original schema.
+
+```ts
+const RawLevel = u16();
+const Level = RawLevel.gte(1).transform((value) => value - 1);
+```
+
+Every schema supports these modifiers:
+
+| Modifier              | Result             | Cursor                       |
+| --------------------- | ------------------ | ---------------------------- |
+| `.peek()`             | Original value     | Restored to the schema start |
+| `.pad(bytes \| fn)`   | Original value     | Advanced after decoding      |
+| `.check(fn)`          | Original value     | Callback-controlled          |
+| `.is(value)`          | Narrowed value     | Unchanged                    |
+| `.in(values)`         | Narrowed value     | Unchanged                    |
+| `.transform(fn)`      | Callback result    | Callback-controlled          |
+| `.pipe(schema \| fn)` | Next schema result | Next schema is consumed      |
+
+Modifier callbacks receive `(value, reader)`.
+
+## `.peek()`
+
+`.peek()` decodes normally, then restores the cursor to the schema's starting
+offset. Use it to interpret the same bytes more than once.
+
+```ts
+const PackedId = struct({
+  key: u32()
+    .peek()
+    .transform((n) => n & 0x00ffffff),
+  mod: u32().transform((n) => n >>> 24),
+});
+```
+
+:::tip
+This is useful when decoding composite values. In the example above, `PackedId`
+is a `u32()`, where the low 24 bits represents a key, and the high 8 bits
+represent a modifier.
+:::
+
+## `.pad()`
+
+`.pad(bytes)` advances the cursor after decoding. A callback can also be passed to
+dynamically compute the padding from the decoded value.
+
+:::tip
+This is the equivalent to JavaScript's `padEnd()`. Use [`padded()`](/api/misc#padded)
+when you need `padStart()`.
+:::
+
+<CodeGroup>
+
+```ts Fixed
+const FixedEntry = u16().pad(2);
+```
+
+```ts Dynamic
+const Text = bytes(u8())
+  .pad((b) => (4 - (b.length % 4)) % 4)
+  .utf8();
+```
+
+</CodeGroup>
+
+## `.check()`
+
+`.check(fn)` accepts `true` or `undefined`. Returning `false` throws a
+`BsdIssue`; throw `reader.fail(message)` for a custom failure.
+
+```ts
+const Version = u8().check((value, reader) => {
+  if (value !== 2) throw reader.fail(`unsupported version: ${value}`);
+});
+```
+
+Checks preserve the decoded type and value.
+
+## `.is()` and `.in()`
+
+`.is(value)` enforces shallow equality. `.in(values)` accepts an array, `Set`,
+or `Map`; maps are tested by key. Both narrow the inferred result type.
+
+```ts
+const Version = u8().is(3);
+const Priority = u8().in([0, 1, 2]);
+const Opcode = u16().in(new Set([0x1001, 0x1002]));
+```
+
+## `.transform()`
+
+`.transform(fn)` maps a decoded value without reading another schema.
+
+```ts
+const DurationSeconds = u32().transform((milliseconds) => milliseconds / 1000);
+
+const Flags = u8().transform((bits) => ({
+  visible: (bits & 0x01) !== 0,
+  locked: (bits & 0x02) !== 0,
+}));
+```
+
+The callback may use its `reader` argument when the transformation depends on
+the current cursor.
+
+## `.pipe()`
+
+`.pipe(schema)` decodes a second schema and returns its result. `.pipe(fn)` uses
+the first result and current reader to select that schema.
+
+```ts
+const Payload = u16().pipe((byteLength) => bytes(byteLength));
+```
+
+The length is consumed but omitted from the result.
+
+```ts
+const Value = u8().pipe((tag) => {
+  if (tag === 1) return u16();
+  if (tag === 2) return u32();
+  return bytes(4);
+});
+```
+
+Use `.transform()` to map a value; use `.pipe()` when decoding must continue
+with another schema.
+
+## Type-specific modifiers
+
+| Schema                                   | Modifiers                                                          |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| [Numbers](/api/numbers#constraints)      | `.gt()`, `.gte()`, `.lt()`, `.lte()`, `.positive()`, `.negative()` |
+| [Bytes](/api/bytes#storage-semantics)    | `.slice()`, `.copy()`, `.reserved()`                               |
+| [Byte text](/api/bytes#text-decoding)    | `.ascii()`, `.utf8()`, `.utf16()`                                  |
+| [Byte frames](/api/bytes#frames)         | `.frame()`                                                         |
+| [Structs](/api/structs#field-projection) | `.pick()`, `.omit()`                                               |

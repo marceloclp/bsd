@@ -1,0 +1,93 @@
+---
+title: Bytes
+description: Decode byte ranges, text, frames, and residual input.
+sidebar:
+  icon: binary
+---
+
+`bytes(length)` consumes `length` bytes and returns a `Uint8Array`.
+
+```ts
+import { bytes, u16 } from "@marceloclp/bsd";
+
+bytes(4); // fixed width
+bytes(u16()); // u16 length prefix
+```
+
+A schema-backed length is consumed before the payload and omitted from the
+result.
+
+## Storage semantics
+
+`bytes()` returns a zero-copy `subarray()` of the input.
+
+| Modifier             | Result                             |
+| -------------------- | ---------------------------------- |
+| `.slice(start, end)` | Zero-copy subview                  |
+| `.copy()`            | Independent allocation             |
+| `.reserved()`        | `undefined`; bytes remain consumed |
+
+```ts
+const Digest = bytes(24).slice(4, 20);
+const MutablePayload = bytes(32).copy();
+const ReservedFooter = bytes(12).reserved();
+```
+
+`.reserved()` does not validate byte values.
+
+## Text decoding
+
+| Modifier   | Decoder      | Result   |
+| ---------- | ------------ | -------- |
+| `.ascii()` | ASCII        | `string` |
+| `.utf8()`  | Fatal UTF-8  | `string` |
+| `.utf16()` | Fatal UTF-16 | `string` |
+
+```ts
+import { bytes, struct, u8, u32 } from "@marceloclp/bsd";
+
+const Labels = struct({
+  code: bytes(4).ascii(),
+  name: bytes(u8()).utf8(),
+  title: bytes(u32().transform((n) => n * 2)).utf16(),
+});
+```
+
+Lengths are byte counts. Transform character counts before passing them to
+`bytes()`.
+
+```ts
+const PaddedText = bytes(
+  u32()
+    .pad(4)
+    .transform((characters) => characters * 2),
+).utf16();
+```
+
+## Frames
+
+`.frame(schema)` decodes the byte view with an isolated reader. The nested
+schema cannot access the outer buffer range.
+
+```ts
+import { bytes, repeat, u16, u32 } from "@marceloclp/bsd";
+
+const Values = bytes(u32()).frame(repeat(u16()));
+```
+
+## Remaining input
+
+`remaining(trailingBytes = 0)` consumes the active range while optionally
+preserving a suffix.
+
+```ts
+import { remaining, struct, u16 } from "@marceloclp/bsd";
+
+const Packet = struct({
+  type: u16(),
+  payload: remaining(4),
+  checksum: bytes(4),
+});
+```
+
+For terminator-delimited data, use [`find()`](/api/misc#find).

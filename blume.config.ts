@@ -1,8 +1,8 @@
 import { defineConfig } from "blume";
 
 export default defineConfig({
-    title: "Eke",
-    description: "Type-safe, composable binary decoding for TypeScript.",
+    title: "BSD",
+    description: "Decode binary data with readable, composable TypeScript schemas.",
     content: {
         root: "docs",
     },

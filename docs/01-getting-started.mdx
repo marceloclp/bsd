@@ -1,0 +1,79 @@
+---
+title: Getting Started
+description: Install BSD and decode a typed binary record.
+sidebar:
+  icon: rocket
+  order: 1
+---
+
+Install BSD, define a schema, and decode a `Uint8Array`. BSD is ESM-only and
+ships TypeScript declarations.
+
+## Install and decode
+
+<Steps>
+  <Step title="Install BSD">
+
+    Add BSD to a new or existing TypeScript project.
+
+    ```package-install
+    npm install @marceloclp/bsd
+    ```
+
+  </Step>
+
+  <Step title="Define the schema">
+
+    Schemas consume fields sequentially. This record contains a version, ID,
+    and length-prefixed UTF-8 name.
+
+    ```ts profile.ts
+    import { bytes, struct, u8, u16 } from "@marceloclp/bsd";
+    import type { BsdInfer } from "@marceloclp/bsd";
+
+    export const Profile = struct({
+      version: u8().is(1),
+      id: u16(),
+      name: bytes(u8()).utf8(),
+    });
+
+    export type Profile = BsdInfer<typeof Profile>;
+    ```
+
+  </Step>
+
+  <Step title="Decode the input">
+
+    `decode()` accepts a `Uint8Array`. Strict mode rejects trailing bytes.
+
+    ```ts
+    const input = Uint8Array.of(
+      1,          // version
+      42, 0,      // id: 42
+      3,          // name byte length
+      65, 100, 97 // "Ada"
+    );
+
+    const profile = Profile.decode(input, { strict: true });
+    // { version: 1, id: 42, name: "Ada" }
+    ```
+
+  </Step>
+</Steps>
+
+## Understand the schema
+
+| Schema               |    Bytes consumed | Result                         |
+| -------------------- | ----------------: | ------------------------------ |
+| `u8().is(1)`         |                 1 | Literal `1`; other values fail |
+| `u16()`              |                 2 | Little-endian unsigned integer |
+| `bytes(u8()).utf8()` | 1 + stored length | UTF-8 string                   |
+
+The name length controls decoding but is absent from the result. `struct()`
+returns only its declared fields, and `BsdInfer` derives their exact TypeScript
+type.
+
+:::note
+Without `{ strict: true }`, decoding may stop before the input ends. Use strict
+mode for complete files and packets; omit it for prefixes and embedded records.
+:::

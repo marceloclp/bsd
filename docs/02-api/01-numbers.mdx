@@ -1,0 +1,98 @@
+---
+title: Numbers
+description: Decode little-endian integers, IEEE 754 floats, and Boolean flags.
+sidebar:
+  icon: hash
+---
+
+Numeric schemas consume fixed-width little-endian values.
+
+## Integers
+
+| Schema  | Bytes | Domain             | Result   |
+| ------- | ----: | ------------------ | -------- |
+| `u8()`  |     1 | 0 to 255           | `number` |
+| `u16()` |     2 | 0 to 65,535        | `number` |
+| `u24()` |     3 | 0 to 16,777,215    | `number` |
+| `u32()` |     4 | 0 to 4,294,967,295 | `number` |
+| `u64()` |     8 | 0 to 2^64 - 1      | `bigint` |
+| `i8()`  |     1 | -2^7 to 2^7 - 1    | `number` |
+| `i16()` |     2 | -2^15 to 2^15 - 1  | `number` |
+| `i24()` |     3 | -2^23 to 2^23 - 1  | `number` |
+| `i32()` |     4 | -2^31 to 2^31 - 1  | `number` |
+| `i64()` |     8 | -2^63 to 2^63 - 1  | `bigint` |
+
+```ts
+import { i16, u16, u64 } from "@marceloclp/bsd";
+
+u16().decode(Uint8Array.of(0x34, 0x12)); // 0x1234
+i16().decode(Uint8Array.of(0xfe, 0xff)); // -2
+u64().decode(Uint8Array.of(1, 0, 0, 0, 0, 0, 0, 0)); // 1n
+```
+
+:::warning
+`u64()` and `i64()` return `bigint`; constraints require bigint operands:
+`u64().gt(0n)`.
+:::
+
+## Floats
+
+| Schema  | Bytes | Format            | Approximate precision | Result   |
+| ------- | ----: | ----------------- | --------------------: | -------- |
+| `f32()` |     4 | IEEE 754 binary32 |              7 digits | `number` |
+| `f64()` |     8 | IEEE 754 binary64 |          15–16 digits | `number` |
+
+```ts
+import { f32 } from "@marceloclp/bsd";
+
+const input = new Uint8Array(4);
+new DataView(input.buffer).setFloat32(0, 21.5, true);
+
+f32().decode(input); // 21.5
+```
+
+The width is part of the binary contract. Floating-point results retain IEEE
+754 behavior, including rounding error, `NaN`, and infinities.
+
+## Booleans
+
+| Schema   | Bytes | Domain | Result    |
+| -------- | ----: | ------ | --------- |
+| `bool()` |     1 | 0 or 1 | `boolean` |
+
+```ts
+import { bool } from "@marceloclp/bsd";
+
+bool().decode(Uint8Array.of(1)); // true
+```
+
+## Constraints
+
+All numeric schemas expose the same predicates. Failure throws `BsdIssue`.
+
+| Method        | Predicate    |
+| ------------- | ------------ |
+| `.gt(x)`      | `value > x`  |
+| `.gte(x)`     | `value >= x` |
+| `.lt(x)`      | `value < x`  |
+| `.lte(x)`     | `value <= x` |
+| `.positive()` | `value > 0`  |
+| `.negative()` | `value < 0`  |
+
+```ts
+import { f32, i16, u16 } from "@marceloclp/bsd";
+
+const Port = u16().gte(1).lte(65_535);
+const NegativeDelta = i16().negative();
+const Probability = f32().gte(0).lte(1);
+```
+
+`.is(value)` validates and narrows one literal. `.in(values)` accepts an array,
+`Set`, or `Map` and narrows to its members.
+
+```ts
+import { u8, u16 } from "@marceloclp/bsd";
+
+const Version: Bsd<3> = u16().is(3);
+const Priority: Bsd<0 | 1 | 2> = u8().in([0, 1, 2]);
+```

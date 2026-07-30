@@ -1,0 +1,84 @@
+---
+title: Arrays
+description: Decode fixed-count, prefixed, and frame-bounded sequences.
+sidebar:
+  icon: list
+---
+
+| Constructor            | Termination                     |
+| ---------------------- | ------------------------------- |
+| `array(count, schema)` | Static or decoded element count |
+| `repeat(schema)`       | Current input or frame boundary |
+
+## Arrays
+
+Arrays are used to decode sequence of elements where the **number
+of elements** is known beforehand, either statically or by decoding
+a count prefix.
+
+When decoding the length of the array, the count schema is evaluated first,
+followed by the array elements.
+
+<CodeGroup>
+
+```typescript Static
+// The first parameter is a number:
+const Tuple = array(2, u16());
+```
+
+```typescript Decoded
+// The first parameter is a numeric schema:
+const Vector = array(u32(), u16());
+```
+
+```typescript Padded
+// Some prefixed arrays also contain padding bytes
+// between the count and the start of the array:
+const Array = array(u32().pad(4), u16());
+```
+
+</CodeGroup>
+
+## Boundary repetition
+
+`repeat()` can be used to decode a sequence of elements where the
+**number of bytes** of the entire sequence is known, instead of the
+number of elements. It works by consuming the remaining unread bytes
+in the internal reader.
+
+```ts
+repeat(u16()).decode(Uint8Array.of(1, 0, 2, 0)); // [1, 2]
+```
+
+You may combine `bytes().frame()` with `repeat()` to consume a frame
+inside another frame. The main `Uint8Array` is treated as the root frame.
+Take the following binary layout:
+
+| Bytes | Type       | Description                                       |
+| :---- | :--------- | :------------------------------------------------ |
+| `4`   | `number`   | ID                                                |
+| `4`   | `number`   | Total number of bytes (`n`) for a list of strings |
+| `n`   | `string[]` | List of null-terminated strings                   |
+| `4`   | `number`   | Version                                           |
+
+Because the list of strings appears before the version field, we can't rely
+on the remaining bytes in the root frame, so we need to extract the list of
+strings' frame first, before using `repeat()`:
+
+```ts
+const NullTerminatedString = find(u16(), (v) => v < 0x20)
+  .pipe((o, r) => bytes(o - r.byteOffset))
+  .utf16()
+  .pad(2);
+
+const Data = struct({
+  id: u32(),
+  strings: bytes(u32()).frame(repeat(NullTerminatedString)),
+  version: u32(),
+});
+```
+
+:::warning
+The repeated schema must advance the cursor. A zero-width schema causes a
+non-terminating loop.
+:::

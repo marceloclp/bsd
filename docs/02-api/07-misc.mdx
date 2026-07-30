@@ -1,0 +1,80 @@
+---
+title: Misc
+description: Define constants, inspect offsets, scan input, skip padding, and implement custom schemas.
+sidebar:
+  icon: ellipsis
+---
+
+These constructors cover cursor control, lookahead, and
+low-level decoding.
+
+| Constructor                  | Cursor effect         | Result                |
+| ---------------------------- | --------------------- | --------------------- |
+| `offset()`                   | None                  | Absolute byte offset  |
+| `find(schema, predicate)`    | Scans, then restores  | Absolute match offset |
+| `padded(byteLength, schema)` | Skips before decoding | Inner schema result   |
+| `custom(decoder)`            | Decoder-controlled    | Decoder result        |
+
+## `offset()`
+
+`offset()` returns the current absolute cursor without advancing it. This is
+mostly useful when reverse engineering a binary layout. `startsAt` identifies
+the first byte consumed by `id`.
+
+```ts
+const Entry = struct({ startsAt: offset(), id: u32() });
+```
+
+## `find()`
+
+`find(schema, predicate)` repeatedly decodes `schema` as lookahead. It returns
+the absolute offset immediately before the first matching value, then restores
+the original cursor.
+
+`find()` locates the terminator, `.pipe()` consumes the text, and `.pad(2)`
+consumes the terminator. If scanning cannot decode another value, `find()`
+returns the offset after the last successful non-match.
+
+```ts
+const NullTerminatedUtf16Text = find(u16(), (v) => v === 0)
+  .pipe((o, r) => bytes(o - r.byteOffset).utf16())
+  .pad(2);
+```
+
+## `padded()`
+
+`padded(byteLength, schema)` skips `byteLength` bytes before decoding `schema`.
+Use `schema.pad(byteLength)` to skip bytes after decoding instead.
+
+:::tip
+This is the equivalent of JavaScript's `padStart()`, while `schema.pad()` is
+the equivalent of `padEnd()`.
+:::
+
+The record consumes a 16-bit tag, two padding bytes, then a 32-bit value.
+
+```ts
+const AlignedRecord = struct({
+  tag: u16(),
+  value: padded(2, u32()),
+});
+```
+
+## `custom()`
+
+`custom(decoder)` creates a schema from a
+[`BsdReader`](/api/reader) callback. The decoder owns cursor advancement and
+must preserve path state when it decodes nested values.
+
+```ts
+const CString = custom((reader) => {
+  const start = reader.byteOffset;
+  let end = start;
+
+  while (end < reader.limit && reader.buffer[end] !== 0) end++;
+  if (end === reader.limit) throw reader.fail("unterminated C string");
+
+  reader.byteOffset = end + 1;
+  return new TextDecoder().decode(reader.buffer.subarray(start, end));
+});
+```

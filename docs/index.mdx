@@ -1,70 +1,170 @@
 ---
-title: Eke
-description: Type-safe, composable binary decoding for TypeScript.
+title: BSD
+description: Composable, type-safe binary decoding for TypeScript.
 sidebar:
-    label: Introduction
-    icon: binary
-    order: 0
+  label: Introduction
+  icon: binary
+  order: 0
 ---
 
-Eke turns binary layouts into small, composable schemas. Define how bytes are
-decoded, compose those definitions into application values, and retain the
-inferred TypeScript type throughout.
+## Introduction
+
+BSD (**Binary Schema Decoder**) is a declarative binary decoder for TypeScript.
+Schemas consume a `Uint8Array` sequentially and return statically inferred
+values. BSD decodes data; it does not encode it.
 
 ```ts
-import { bytes, struct, u8, u16 } from "@marceloclp/eke";
-import type { Infer } from "@marceloclp/eke";
+import { bytes, struct, u8, u16 } from "@marceloclp/bsd";
 
-const message = struct({
-    version: u8().is(1),
-    body: bytes(u16()).utf8(),
+const Profile = struct({
+  version: u8().is(1),
+  id: u16(),
+  name: bytes(u8()).utf8(),
 });
 
-type Message = Infer<typeof message>;
-
-const value: Message = message.decode(Uint8Array.of(1, 2, 0, 0x6f, 0x6b));
-// { version: 1, body: "ok" }
+const data = Uint8Array.from(1, 42, 0, 3, 65, 100, 97);
+const profile = Profile.decode(data);
+// { version: 1, id: 42, name: "Ada" }
 ```
 
-All built-in numeric decoders are little-endian. A top-level `decode()` succeeds
-only when it consumes the complete input. Truncation, unexpected trailing
-bytes, and validation failures throw `DecodeError` with a byte offset and path.
+| Expression           | Operation                                     |
+| -------------------- | --------------------------------------------- |
+| `struct({...})`      | Decodes fields in declaration order           |
+| `u8().is(1)`         | Reads one byte and verifies it is `1`         |
+| `u16()`              | Reads a little-endian 16-bit unsigned integer |
+| `bytes(u8()).utf8()` | Reads a length-prefixed UTF-8 string          |
 
-<CardGroup cols={2}>
-    <Card title="Quickstart" href="/quickstart" icon="rocket">
-        Install Eke and decode your first binary value.
-    </Card>
-    <Card title="Numbers" href="/guides/numbers" icon="hash">
-        Choose integer and floating-point schemas.
-    </Card>
-    <Card
-        title="Arrays and dynamic values"
-        href="/guides/arrays-and-dynamic-values"
-        icon="list"
-    >
-        Decode collections and input-dependent layouts.
-    </Card>
-    <Card title="API reference" href="/reference/api" icon="braces">
-        See the complete package surface and signatures.
-    </Card>
-</CardGroup>
+## Core model
 
-## Why Eke
+### Sequential decoding
 
-- **Composable schemas.** Reuse primitives in arrays, structs, frames, unions,
-  and runtime-selected layouts.
-- **Precise types.** `Infer` preserves literal checks, bigint widths, nested
-  structs, and transformed values.
-- **Contextual failures.** `DecodeError` identifies both the byte offset and the
-  nested field or array index.
-- **Open decoder state.** `BsdReader` exposes its cursor, active frame, path,
-  input views, and low-level readers for specialized binary formats.
-- **Portable runtime.** The package is ESM-only, dependency-free, and operates
-  on `Uint8Array` without Node-specific APIs.
+A schema reads from a shared cursor. Each operation starts where the previous
+one ended, so declaration order must match the binary layout.
 
-## Naming
+```ts
+const Header = struct({
+  version: u8(), // byte 0
+  flags: u8(), // byte 1
+  size: u16(), // bytes 2–3
+});
+```
 
-Public schema interfaces use the `Bsd` prefix, short for **binary schema
-decoder**: `BsdSchema`, `BsdNumber`, `BsdBytes`, and `BsdStruct`. Constructors
-stay concise (`u16()`, `bytes()`, `struct()`) because they are the API used most
-often when declaring a layout.
+### Schema composition
+
+Every constructor returns a schema. Schemas can therefore be nested and reused
+without custom parsing code.
+
+```ts
+const Point = struct({
+  x: u16(),
+  y: u16(),
+});
+
+const Polygon = struct({
+  id: u32(),
+  points: array(u16(), Point),
+});
+```
+
+Schemas can also be piped (similar to `flatMap()`), where the decoded schema
+is used as an argument for the next schema. This allows for highly dynamic
+schema composition and decoding, but makes encoding impossible.
+
+<CodeGroup>
+
+```ts UTF16-String
+// A UTF-16 string where the prefixed length represents
+const Utf16String = u32()
+  .pipe((len) => bytes(len * 2))
+  .utf16();
+```
+
+```ts Padded-UTF16-String
+// A padded UTF-16 string where the prefixed length represents
+const PaddedUtf16String = u32()
+  .pad(4)
+  .pipe((len) => bytes(len * 2))
+  .utf16();
+```
+
+```ts Null-Terminated-UTF16-String
+const NullTerminatedString = find(u16(), (v) => v < 0x20)
+  .pipe((x, r) => bytes(x - r.byteOffset))
+  .utf16();
+```
+
+</CodeGroup>
+
+### Little-endian numbers
+
+Numeric schemas interpret the least-significant byte first. The schema width
+determines how many bytes are consumed.
+
+```ts
+u16().decode(Uint8Array.of(0x34, 0x12));
+// 0x1234
+```
+
+### Zero-copy byte views
+
+`bytes(n)` returns a `Uint8Array` view into the input buffer. This avoids an
+allocation, but mutations affect the original input. You can use `.copy()` to
+make a copy that does not share storage with the input and is safe to mutate.
+
+<CodeGroup>
+
+```ts View
+const input = Uint8Array.of(1, 2, 3);
+const view = bytes(2).decode(input);
+
+view[0] = 9;
+console.log(input[0]); // 9
+console.log(view[0] === input[0]); // true
+```
+
+```ts Copy
+const input = Uint8Array.of(1, 2, 3);
+const view = bytes(2).copy().decode(input);
+
+view[0] = 9;
+console.log(input[0]); // 1
+console.log(view[0] === input[0]); // false
+```
+
+</CodeGroup>
+
+### Validation and transformation
+
+Validation and transformations are achieved through schema modifiers,
+which run after decoding. Each schema is a sequence of one decoder and
+zero or more modifiers. Modifiers run in order.
+
+| Modifier       | Usage                                                   |
+| -------------- | ------------------------------------------------------- |
+| `.check()`     | Custom validation rule                                  |
+| `.is()`        | Shallow equality and type-narrowing                     |
+| `.in()`        | Shallow equality against an iterable and type-narrowing |
+| `.transform()` | Custom transformation                                   |
+
+```ts
+const Version: Bsd<2> = u8().is(2 as const);
+const Priority: Bsd<0 | 1 | 2> = u8().in([0, 1, 2] as const);
+const Percentage = u16().transform((value) => value / 100);
+```
+
+### Contextual failures
+
+Invalid data throws `BsdIssue`. The error records where the schema started,
+where decoding stopped, and the nested field or array index.
+
+```ts
+try {
+  array(3, u8().lte(10)).decode(Uint8Array.of(1, 99, 3));
+} catch (error) {
+  if (error instanceof BsdIssue) {
+    console.log(error.schemaOffset); // 1
+    console.log(error.byteOffset); // 2
+    console.log(error.path); // [1]
+  }
+}
+```

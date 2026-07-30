@@ -81,7 +81,7 @@ export function offset(): BsdNumber<number> {
  * ```typescript
  * const Str = find(u16(), (v) => v < 0x20)
  *     .pipe((o, r) => bytes(o - r.byteOffset))
- *     .utf16le()
+ *     .utf16()
  *     .padded(2);
  * ```
  */

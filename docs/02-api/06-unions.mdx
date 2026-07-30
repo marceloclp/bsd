@@ -1,0 +1,83 @@
+---
+title: Unions
+description: Decode alternative layouts and value-dependent schemas.
+sidebar:
+  icon: git-branch
+---
+
+`union(...schemas)` attempts at least two schemas in declaration order and
+returns the first successful result.
+
+## Discrimination
+
+When defining schemas to be used inside a union, you can use the `literal()`
+schema to brand each branch. This provides proper type-narrowing when using
+the decoded value inside a switch or another control flow statement.
+
+```ts
+const User = struct({
+  type: literal("user"),
+  id: u16(),
+});
+
+const Message = struct({
+  type: literal("message"),
+  text: bytes(u8()).utf8(),
+});
+
+const Record = union(User, Message);
+
+const input = Uint8Array.from(...);
+const record = Record.decode(input);
+
+switch (record.type) {
+    case "user": break;
+    case "message": break;
+}
+```
+
+## Specificity and ordering
+
+Unions are decoded inside a try/catch block. Each branch is decoded in
+the order they are declared. The union will exit when the first branch
+succeeds without throwing.
+
+Therefore, the order in which each branch appears matters. If the first
+branch can never fail to decode, then the first branch will always be
+matched.
+
+You can increase the specificity of a branch through the use of checks:
+
+```ts
+const Admin = struct({ type: literal("admin"), id: u16().is(0) });
+const User = struct({ type: literal("user"), id: u16() });
+
+// This union will always return a User:
+const Record = union(User, Admin);
+
+// This union will correctly discriminate between Admin and User:
+const Record = union(Admin, User);
+```
+
+:::tip
+Order branches from most to least specific. The first successful branch wins.
+:::
+
+## Union vs pipe
+
+| Primitive         | Selection strategy                           |
+| ----------------- | -------------------------------------------- |
+| `union(a, b)`     | Trial decode from a shared starting offset   |
+| `schema.pipe(fn)` | Deterministic selection from a decoded value |
+
+<CodeGroup>
+
+```ts Union
+const Record = union(Admin, User);
+```
+
+```ts Pipe
+const Record = bool().pipe((isAdmin) => (isAdmin ? Admin : User));
+```
+
+</CodeGroup>
