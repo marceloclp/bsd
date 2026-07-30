@@ -132,6 +132,34 @@ export interface Bsd<T> {
     check(check: BsdCheck<T>): BsdFor<T>;
 
     /**
+     * Checks that the schema consumed at least the specified number of bytes.
+     *
+     * ```typescript
+     * const Header = struct({ version: u8(), flags: u8() }).minLength(2);
+     * ```
+     */
+    minLength(bytes: number): BsdFor<T>;
+
+    /**
+     * Checks that the schema consumed fewer than the specified number of bytes.
+     * The upper bound is exclusive.
+     *
+     * ```typescript
+     * const CompactRecord = struct({ id: u16() }).maxLength(3);
+     * ```
+     */
+    maxLength(bytes: number): BsdFor<T>;
+
+    /**
+     * Checks that the schema consumed exactly the specified number of bytes.
+     *
+     * ```typescript
+     * const Header = struct({ version: u8(), flags: u8() }).fixedLength(2);
+     * ```
+     */
+    fixedLength(bytes: number): BsdFor<T>;
+
+    /**
      * Syntax sugar for shallow equality checks. This also performs type
      * narrowing.
      *

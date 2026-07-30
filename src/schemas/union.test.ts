@@ -49,6 +49,28 @@ describe(union, () => {
         });
     });
 
+    it("uses consumed length to differentiate branches", () => {
+        const Short = struct({
+            type: literal("short"),
+            value: u8(),
+        }).fixedLength(1);
+        const Long = struct({
+            type: literal("long"),
+            value: u16(),
+        }).fixedLength(2);
+
+        expect(union(Short, Long).decode(Uint8Array.of(0x34, 0x12))).toEqual({
+            type: "short",
+            value: 0x34,
+        });
+        expect(
+            union(Short.minLength(2), Long).decode(Uint8Array.of(0x34, 0x12)),
+        ).toEqual({
+            type: "long",
+            value: 0x1234,
+        });
+    });
+
     it("restores nested path state between branches", () => {
         const schema = struct({
             payload: union(

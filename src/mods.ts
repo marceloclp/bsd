@@ -35,6 +35,42 @@ export function check<T>(fn: BsdCheck<T>) {
     };
 }
 
+export function minLength<T>(expected: number) {
+    return (value: T, reader: BsdReader): T => {
+        const actual = reader.byteOffset - reader.schemaOffset;
+        if (actual >= expected) {
+            return value;
+        }
+        throw reader.fail(
+            `expected schema to consume at least ${expected} bytes, consumed ${actual}`,
+        );
+    };
+}
+
+export function maxLength<T>(expected: number) {
+    return (value: T, reader: BsdReader): T => {
+        const actual = reader.byteOffset - reader.schemaOffset;
+        if (actual < expected) {
+            return value;
+        }
+        throw reader.fail(
+            `expected schema to consume less than ${expected} bytes, consumed ${actual}`,
+        );
+    };
+}
+
+export function fixedLength<T>(expected: number) {
+    return (value: T, reader: BsdReader): T => {
+        const actual = reader.byteOffset - reader.schemaOffset;
+        if (actual === expected) {
+            return value;
+        }
+        throw reader.fail(
+            `expected schema to consume exactly ${expected} bytes, consumed ${actual}`,
+        );
+    };
+}
+
 export function inIter<T, const U extends T>(
     values: Array<U> | Set<U> | Map<U, any>,
 ) {

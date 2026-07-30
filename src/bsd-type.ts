@@ -17,12 +17,15 @@ import {
     check,
     copy,
     eq,
+    fixedLength,
     frame,
     gt,
     gte,
     inIter,
     lt,
     lte,
+    maxLength,
+    minLength,
     omit,
     pad,
     peek,
@@ -95,6 +98,21 @@ export class BsdType<T> implements Bsd<T> {
     /** @see {@link Bsd} */
     check(fn: BsdCheck<T>): BsdFor<T> {
         return this.addModifier(check(fn));
+    }
+
+    /** @see {@link Bsd} */
+    minLength(bytes: number): BsdFor<T> {
+        return this.addModifier(minLength(bytes));
+    }
+
+    /** @see {@link Bsd} */
+    maxLength(bytes: number): BsdFor<T> {
+        return this.addModifier(maxLength(bytes));
+    }
+
+    /** @see {@link Bsd} */
+    fixedLength(bytes: number): BsdFor<T> {
+        return this.addModifier(fixedLength(bytes));
     }
 
     /** @see {@link Bsd} */

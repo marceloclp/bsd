@@ -20,6 +20,9 @@ Every schema supports these modifiers:
 | `.peek()`             | Original value     | Restored to the schema start |
 | `.pad(bytes \| fn)`   | Original value     | Advanced after decoding      |
 | `.check(fn)`          | Original value     | Callback-controlled          |
+| `.minLength(bytes)`   | Original value     | Unchanged                    |
+| `.maxLength(bytes)`   | Original value     | Unchanged                    |
+| `.fixedLength(bytes)` | Original value     | Unchanged                    |
 | `.is(value)`          | Narrowed value     | Unchanged                    |
 | `.in(values)`         | Narrowed value     | Unchanged                    |
 | `.transform(fn)`      | Callback result    | Callback-controlled          |
@@ -83,6 +86,23 @@ const Version = u8().check((value, reader) => {
 ```
 
 Checks preserve the decoded type and value.
+
+## Length constraints
+
+`.minLength(bytes)`, `.maxLength(bytes)`, and `.fixedLength(bytes)` constrain
+the number of bytes consumed by a schema. The minimum is inclusive, while the
+maximum is exclusive.
+
+```ts
+const Short = struct({ type: literal("short"), value: u8() }).fixedLength(1);
+const Long = struct({ type: literal("long"), value: u16() }).fixedLength(2);
+
+const Value = union(Short.minLength(2), Long);
+```
+
+Length is measured from the schema's starting offset at the point the modifier
+runs. Prior cursor modifiers such as `.pad()` therefore contribute to the
+consumed length.
 
 ## `.is()` and `.in()`
 

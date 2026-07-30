@@ -6,12 +6,15 @@ import {
     check,
     copy,
     eq,
+    fixedLength,
     frame,
     gt,
     gte,
     inIter,
     lt,
     lte,
+    maxLength,
+    minLength,
     omit,
     pad,
     peek,
@@ -157,6 +160,69 @@ describe(check, () => {
 
         expect(callbackValue).toBe(7);
         expect(callbackOffset).toBe(1);
+    });
+});
+
+describe(minLength, () => {
+    it("accepts schemas that consume at least the bound", () => {
+        const schema = bytes(2).minLength(2);
+
+        expect(schema.decode(Uint8Array.of(1, 2))).toEqual(Uint8Array.of(1, 2));
+    });
+
+    it("rejects schemas that consume less than the bound", () => {
+        const schema = u8().minLength(2);
+
+        expect(() => schema.decode(Uint8Array.of(1))).toThrow(BsdIssue);
+    });
+});
+
+describe(maxLength, () => {
+    it("accepts schemas that consume less than the bound", () => {
+        const schema = u8().maxLength(2);
+
+        expect(schema.decode(Uint8Array.of(1))).toBe(1);
+    });
+
+    it("rejects the bound because it is exclusive", () => {
+        const schema = bytes(2).maxLength(2);
+
+        expect(() => schema.decode(Uint8Array.of(1, 2))).toThrow(BsdIssue);
+    });
+});
+
+describe(fixedLength, () => {
+    it("accepts schemas that consume exactly the bound", () => {
+        const schema = struct({ first: u8(), second: u8() }).fixedLength(2);
+
+        expect(schema.decode(Uint8Array.of(1, 2))).toEqual({
+            first: 1,
+            second: 2,
+        });
+    });
+
+    it("rejects schemas that consume a different number of bytes", () => {
+        const schema = u8().fixedLength(2);
+
+        expect(() => schema.decode(Uint8Array.of(1))).toThrow(BsdIssue);
+    });
+
+    it("measures from the start of a nested schema", () => {
+        const schema = struct({
+            prefix: u8(),
+            value: u16().fixedLength(2),
+        });
+
+        expect(schema.decode(Uint8Array.of(9, 0x34, 0x12))).toEqual({
+            prefix: 9,
+            value: 0x1234,
+        });
+    });
+
+    it("includes prior cursor modifiers in the consumed length", () => {
+        const schema = u8().pad(1).fixedLength(2);
+
+        expect(schema.decode(Uint8Array.of(1, 0))).toBe(1);
     });
 });
 
