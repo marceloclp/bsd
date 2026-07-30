@@ -11,6 +11,7 @@ import type {
     BsdShape,
     BsdStruct,
 } from "./bsd";
+import { BSD_READ } from "./constants";
 import {
     bslice,
     check,
@@ -38,12 +39,7 @@ export class BsdType<T> implements Bsd<T> {
     constructor(
         private readonly decoder: BsdDecode<any>,
         private readonly modifiers: readonly BsdMod<any, any>[] = [],
-    ) {}
-
-    /** @see {@link Bsd} */
-    get "~type"(): BsdType<T> {
-        return this;
-    }
+    ) { }
 
     /**
      * @internal
@@ -51,7 +47,7 @@ export class BsdType<T> implements Bsd<T> {
      * Decodes a schema using the reader from the previous
      * schema. This is used when decoding nested schemas.
      */
-    read(reader: BsdReader) {
+    [BSD_READ](reader: BsdReader) {
         const initialOffset = reader.byteOffset;
         reader.schemaOffset = initialOffset;
 
@@ -60,11 +56,7 @@ export class BsdType<T> implements Bsd<T> {
             // Reset the reader's schema offset back to
             // the initial position, before decoding:
             reader.schemaOffset = initialOffset;
-            if (typeof mod === "function") {
-                value = mod(value, reader);
-            } else {
-                value = mod.decode(value, reader);
-            }
+            value = mod(value, reader);
         }
 
         // // Restore the position before exitting, so
@@ -85,7 +77,7 @@ export class BsdType<T> implements Bsd<T> {
      */
     decode(input: Uint8Array, opts?: BsdDecodeOptions): T {
         const reader = new BsdReader(input);
-        const value = this.read(reader);
+        const value = this[BSD_READ](reader);
 
         if (opts?.strict && reader.remaining > 0) {
             throw reader.fail(`unexpected ${reader.remaining} bytes remaining`);

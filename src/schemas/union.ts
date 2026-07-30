@@ -1,5 +1,6 @@
 import type { BsdAny, BsdFor, BsdInfer } from "../bsd";
 import { BsdType } from "../bsd-type";
+import { BSD_READ } from "../constants";
 
 export function union<const S extends readonly [BsdAny, BsdAny, ...BsdAny[]]>(
     ...schemas: S
@@ -11,7 +12,7 @@ export function union<const S extends readonly [BsdAny, BsdAny, ...BsdAny[]]>(
 
         for (const schema of schemas) {
             try {
-                return schema["~type"].read(reader);
+                return schema[BSD_READ](reader);
             } catch {
                 // Reset the reader's state so we can try
                 // the next schema in the union:

@@ -1,5 +1,6 @@
 import type { BsdAny, BsdFor, BsdInfer, BsdShape, BsdStruct } from "../bsd";
 import { BsdType } from "../bsd-type";
+import { BSD_READ } from "../constants";
 
 /**
  * Creates a struct schema.
@@ -16,7 +17,7 @@ export function struct<const S extends BsdShape>(
         const value: Record<string, any> = {};
         for (const [k, s] of entries) {
             reader.path.push(k);
-            value[k] = s["~type"].read(reader);
+            value[k] = s[BSD_READ](reader);
             reader.path.pop();
         }
         return value;

@@ -1,4 +1,5 @@
 import type { BsdType } from "./bsd-type";
+import type { BSD_READ } from "./constants";
 import type { BsdReader } from "./reader";
 
 /** Transform function signature, used to mutate the decoded value. */
@@ -17,10 +18,10 @@ export type BsdShape = Record<string, any>;
 export type BsdFor<T> = [T] extends [number | bigint]
     ? BsdNumber<Extract<T, number | bigint>>
     : [T] extends [Uint8Array]
-      ? BsdBytes
-      : [T] extends [BsdShape]
-        ? BsdStruct<{ -readonly [K in keyof T]: BsdInfer<T[K]> }>
-        : Bsd<T>;
+    ? BsdBytes
+    : [T] extends [BsdShape]
+    ? BsdStruct<{ -readonly [K in keyof T]: BsdInfer<T[K]> }>
+    : Bsd<T>;
 
 /** Resolves a `Bsd` inner type. */
 export type BsdInfer<T> = T extends Bsd<infer U> ? U : T;
@@ -34,6 +35,17 @@ export interface BsdDecodeOptions {
 }
 
 export interface Bsd<T> {
+    /**
+     * @internal
+     *
+     * This method is called by the decoder when decoding nested
+     * schemas. It expects the reader instance, instead of the
+     * raw buffer.
+     *
+     * It's still exposed for users who need an escape hatch.
+     */
+    [BSD_READ](reader: BsdReader): T;
+
     /**
      * Decodes the complete input (all bytes).
      *
@@ -181,8 +193,6 @@ export interface Bsd<T> {
      * ```
      */
     pipe<const S extends BsdAny>(pipe: BsdMod<T, S> | S): BsdFor<BsdInfer<S>>;
-
-    readonly "~type": BsdType<T>;
 }
 
 export interface BsdNumber<

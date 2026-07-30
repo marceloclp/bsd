@@ -1,5 +1,6 @@
 import type { BsdAny, BsdFor, BsdInfer, BsdNumber } from "../bsd";
 import { BsdType } from "../bsd-type";
+import { BSD_LENGTH, BSD_READ } from "../constants";
 
 /**
  * Represents a fixed-length array. The length is the number of
@@ -31,15 +32,20 @@ export function array<const S extends BsdAny>(
     schema: S,
 ): BsdFor<BsdInfer<S>[]> {
     return BsdType.make((reader) => {
-        const s = schema["~type"];
         // The fixed length of the array:
-        const n =
-            typeof count === "number" ? count : count["~type"].read(reader);
+        let n: number | bigint;
+        if (typeof count === "number") {
+            n = count;
+        } else {
+            reader.path.push(BSD_LENGTH);
+            n = count[BSD_READ](reader);
+            reader.path.pop();
+        }
 
         const values: BsdInfer<S>[] = [];
         for (let i = 0; i < n; i++) {
             reader.path.push(i);
-            values.push(s.read(reader));
+            values.push(schema[BSD_READ](reader));
             reader.path.pop();
         }
 
@@ -61,12 +67,10 @@ export function array<const S extends BsdAny>(
  */
 export function repeat<S extends BsdAny>(schema: S): BsdFor<BsdInfer<S>[]> {
     return BsdType.make((reader) => {
-        const s = schema["~type"];
-
         const values: BsdInfer<S>[] = [];
         while (reader.byteOffset < reader.limit) {
             reader.path.push(values.length);
-            values.push(s.read(reader));
+            values.push(schema[BSD_READ](reader));
             reader.path.pop();
         }
 

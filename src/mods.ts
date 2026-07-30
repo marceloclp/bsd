@@ -1,7 +1,8 @@
 import type { BsdAny, BsdCheck, BsdInfer, BsdMod } from "./bsd";
+import { BSD_READ } from "./constants";
 import type { BsdReader } from "./reader";
 
-export function reserve() {}
+export function reserve() { }
 
 export function peek<T>(value: T, reader: BsdReader): T {
     reader.byteOffset = reader.schemaOffset;
@@ -60,7 +61,7 @@ export function inIter<T, const U extends T>(
 export function pipe<T, const U extends BsdAny>(pipe: U | BsdMod<T, U>) {
     return (value: T, reader: BsdReader): BsdInfer<U> => {
         const next = typeof pipe === "function" ? pipe(value, reader) : pipe;
-        return next["~type"].read(reader);
+        return next[BSD_READ](reader);
     };
 }
 
@@ -119,7 +120,7 @@ export function frame<const U extends BsdAny>(
     return (value: Uint8Array, reader: BsdReader): BsdInfer<U> => {
         const next =
             typeof schema === "function" ? schema(value, reader) : schema;
-        return next["~type"].decode(value);
+        return next.decode(value);
     };
 }
 
