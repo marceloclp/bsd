@@ -15,8 +15,11 @@ export function copy(value: Uint8Array): Uint8Array {
 
 export function pad<T>(bytes: number | BsdMod<T, number>) {
     return (value: T, reader: BsdReader): T => {
-        reader.byteOffset +=
-            typeof bytes === "function" ? bytes(value, reader) : bytes;
+        const n = typeof bytes === "function" ? bytes(value, reader) : bytes;
+        if (n >= reader.remaining) {
+            throw reader.fail(`pad(${n}) bytes exceeds remaining ${reader.remaining}`);
+        }
+        reader.byteOffset += n;
         return value;
     };
 }
