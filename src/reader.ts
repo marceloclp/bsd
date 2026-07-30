@@ -66,6 +66,10 @@ export class BsdReader {
     uint(bits: BsdIntegerBits, advance = true): number {
         const offset = this.byteOffset;
 
+        if (bits / 8 > this.remaining) {
+            throw this.fail(`u(${bits}) out of bounds`);
+        }
+
         if (advance) {
             this.byteOffset += bits / 8;
         }
@@ -76,7 +80,10 @@ export class BsdReader {
             case 16:
                 return this.view.getUint16(offset, true);
             case 24:
-                return this.view.getUint32(offset, true) & 0xffffff;
+                return (
+                    this.view.getUint16(offset, true) |
+                    (this.view.getUint8(offset + 2) << 16)
+                );
             case 32:
                 return this.view.getUint32(offset, true);
         }
@@ -84,6 +91,10 @@ export class BsdReader {
 
     int(bits: BsdIntegerBits, advance = true): number {
         const offset = this.byteOffset;
+
+        if (bits / 8 > this.remaining) {
+            throw this.fail(`i(${bits}) out of bounds`);
+        }
 
         if (advance) {
             this.byteOffset += bits / 8;
@@ -94,8 +105,12 @@ export class BsdReader {
                 return this.view.getInt8(offset);
             case 16:
                 return this.view.getInt16(offset, true);
-            case 24:
-                return this.view.getInt32(offset, true) & 0xffffff;
+            case 24: {
+                const value =
+                    this.view.getUint16(offset, true) |
+                    (this.view.getUint8(offset + 2) << 16);
+                return (value << 8) >> 8;
+            }
             case 32:
                 return this.view.getInt32(offset, true);
         }
@@ -103,6 +118,10 @@ export class BsdReader {
 
     biguint(bits: BsdBigIntegerBits, advance = true): bigint {
         const offset = this.byteOffset;
+
+        if (bits / 8 > this.remaining) {
+            throw this.fail(`u(${bits}) out of bounds`);
+        }
 
         if (advance) {
             this.byteOffset += bits / 8;
@@ -116,6 +135,10 @@ export class BsdReader {
 
     bigint(bits: BsdBigIntegerBits, advance = true): bigint {
         const offset = this.byteOffset;
+
+        if (bits / 8 > this.remaining) {
+            throw this.fail(`i(${bits}) out of bounds`);
+        }
 
         if (advance) {
             this.byteOffset += bits / 8;
@@ -131,7 +154,7 @@ export class BsdReader {
         const offset = this.byteOffset;
 
         if (this.remaining < bits / 8) {
-            throw BsdIssue.from(this, `float(${bits}) out of bounds`);
+            throw this.fail(`f(${bits}) out of bounds`);
         }
 
         if (advance) {
@@ -150,7 +173,7 @@ export class BsdReader {
         const offset = this.byteOffset;
 
         if (this.remaining < 1) {
-            throw BsdIssue.from(this, `bool() out of bounds`);
+            throw this.fail(`bool() out of bounds`);
         }
 
         if (advance) {
@@ -170,7 +193,7 @@ export class BsdReader {
         const offset = this.byteOffset;
 
         if (this.remaining < byteLength) {
-            throw BsdIssue.from(this, `bytes(${byteLength}) out of bounds`);
+            throw this.fail(`bytes(${byteLength}) out of bounds`);
         }
 
         if (advance) {
