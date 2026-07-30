@@ -1,11 +1,9 @@
 name: Publish to npm
 
 on:
-    pull_request:
+    push:
         branches:
             - master
-        types:
-            - closed
 
 concurrency:
     group: npm-release-master
