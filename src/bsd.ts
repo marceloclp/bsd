@@ -1,4 +1,3 @@
-import type { BsdType } from "./bsd-type";
 import type { BSD_READ } from "./constants";
 import type { BsdReader } from "./reader";
 

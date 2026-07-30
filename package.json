@@ -30,7 +30,6 @@
         "typecheck": "tsc --noEmit",
         "prepack": "bun run build",
         "prepublishOnly": "bun run typecheck && bun test && bun run verify:package",
-        "bench:reader": "bun run bench/reader.bench.ts",
         "docs:dev": "bun --bun blume dev",
         "docs:build": "bun --bun blume build --isolated",
         "docs:check": "bun --bun blume check",

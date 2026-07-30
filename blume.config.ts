@@ -7,6 +7,11 @@ export default defineConfig({
     content: {
         root: "docs",
     },
+    github: {
+        owner: "marceloclp",
+        repo: "bsd",
+        branch: "master",
+    },
     theme: {
         accent: "teal",
         radius: "md",

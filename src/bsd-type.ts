@@ -59,10 +59,6 @@ export class BsdType<T> implements Bsd<T> {
             value = mod(value, reader);
         }
 
-        // // Restore the position before exitting, so
-        // // we can chain `.peek()`:
-        // reader.schemaOffset = initialOffset;
-
         return value;
     }
 
