@@ -1,9 +1,10 @@
 import { describe, expect, it } from "bun:test";
+
+import { BSD_LENGTH } from "../constants";
 import { BsdIssue } from "../reader";
 import { bytes, remaining } from "./bytes";
-import { u8, u16 } from "./number";
 import { padded } from "./common";
-import { BSD_LENGTH } from "../constants";
+import { u8, u16 } from "./number";
 
 describe(bytes, () => {
     it("decodes a fixed-length zero-copy range", () => {

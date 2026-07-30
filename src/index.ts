@@ -29,6 +29,8 @@ export type {
     BsdNumber,
     BsdBytes,
     BsdStruct,
+    BsdShape,
+    BsdDecodeOptions,
 } from "./bsd";
 export {
     BsdIssue,

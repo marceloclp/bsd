@@ -2,12 +2,12 @@
  * This symbol is reserved for array length paths.
  *
  * @example
- * ```typescript
- * // If decoding fails on the u8(), the BsdIssue should
- * // indicate the length path:
- * array(u8(), u16()).decode(Uint8Array.of());
- * // BsdIssue { path: [BSD_LENGTH] }
- * ```
+ *     ```typescript
+ *     // If decoding fails on the u8(), the BsdIssue should
+ *     // indicate the length path:
+ *     array(u8(), u16()).decode(Uint8Array.of());
+ *     // BsdIssue { path: [BSD_LENGTH] }
+ *     ```
  */
 export const BSD_LENGTH = Symbol.for("@bsd/length");
 

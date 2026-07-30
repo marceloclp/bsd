@@ -2,7 +2,7 @@
 title: Structs
 description: Decode ordered fields into typed objects.
 sidebar:
-  icon: braces
+    icon: braces
 ---
 
 `struct(shape)` decodes object entries in declaration order. Keys are appended
@@ -10,9 +10,9 @@ to the active error path; values form the inferred result.
 
 ```ts
 const User = struct({
-  version: u8().is(1),
-  id: u16(),
-  name: bytes(u8()).utf8(),
+    version: u8().is(1),
+    id: u16(),
+    name: bytes(u8()).utf8(),
 });
 ```
 
@@ -20,13 +20,13 @@ Structs are schemas and compose recursively:
 
 ```ts
 const QuestId = struct({
-  group: u16(),
-  number: u16(),
+    group: u16(),
+    number: u16(),
 });
 
 const QuestList = struct({
-  id: u16(),
-  quests: array(u32(), QuestId),
+    id: u16(),
+    quests: array(u32(), QuestId),
 });
 ```
 
@@ -49,9 +49,9 @@ as close as possible to the actual data layout.
 
 ```ts
 const Table = struct({
-  magic: bytes(4).ascii().is("PABR"),
-  rows: array(u32(), u16()),
-  footer: bytes(12).reserved(),
+    magic: bytes(4).ascii().is("PABR"),
+    rows: array(u32(), u16()),
+    footer: bytes(12).reserved(),
 }).omit({ magic: true, footer: true });
 // { rows: number[] }
 ```

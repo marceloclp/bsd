@@ -2,9 +2,9 @@
 title: BSD
 description: Composable, type-safe binary decoding for TypeScript.
 sidebar:
-  label: Introduction
-  icon: binary
-  order: 0
+    label: Introduction
+    icon: binary
+    order: 0
 ---
 
 ## Introduction
@@ -17,9 +17,9 @@ values. BSD decodes data; it does not encode it.
 import { bytes, struct, u8, u16 } from "@marceloclp/bsd";
 
 const Profile = struct({
-  version: u8().is(1),
-  id: u16(),
-  name: bytes(u8()).utf8(),
+    version: u8().is(1),
+    id: u16(),
+    name: bytes(u8()).utf8(),
 });
 
 const data = Uint8Array.from(1, 42, 0, 3, 65, 100, 97);
@@ -43,9 +43,9 @@ one ended, so declaration order must match the binary layout.
 
 ```ts
 const Header = struct({
-  version: u8(), // byte 0
-  flags: u8(), // byte 1
-  size: u16(), // bytes 2–3
+    version: u8(), // byte 0
+    flags: u8(), // byte 1
+    size: u16(), // bytes 2–3
 });
 ```
 
@@ -56,13 +56,13 @@ without custom parsing code.
 
 ```ts
 const Point = struct({
-  x: u16(),
-  y: u16(),
+    x: u16(),
+    y: u16(),
 });
 
 const Polygon = struct({
-  id: u32(),
-  points: array(u16(), Point),
+    id: u32(),
+    points: array(u16(), Point),
 });
 ```
 
@@ -75,22 +75,22 @@ schema composition and decoding, but makes encoding impossible.
 ```ts UTF16-String
 // A UTF-16 string where the prefixed length represents
 const Utf16String = u32()
-  .pipe((len) => bytes(len * 2))
-  .utf16();
+    .pipe((len) => bytes(len * 2))
+    .utf16();
 ```
 
 ```ts Padded-UTF16-String
 // A padded UTF-16 string where the prefixed length represents
 const PaddedUtf16String = u32()
-  .pad(4)
-  .pipe((len) => bytes(len * 2))
-  .utf16();
+    .pad(4)
+    .pipe((len) => bytes(len * 2))
+    .utf16();
 ```
 
 ```ts Null-Terminated-UTF16-String
 const NullTerminatedString = find(u16(), (v) => v < 0x20)
-  .pipe((x, r) => bytes(x - r.byteOffset))
-  .utf16();
+    .pipe((x, r) => bytes(x - r.byteOffset))
+    .utf16();
 ```
 
 </CodeGroup>
@@ -159,12 +159,12 @@ where decoding stopped, and the nested field or array index.
 
 ```ts
 try {
-  array(3, u8().lte(10)).decode(Uint8Array.of(1, 99, 3));
+    array(3, u8().lte(10)).decode(Uint8Array.of(1, 99, 3));
 } catch (error) {
-  if (error instanceof BsdIssue) {
-    console.log(error.schemaOffset); // 1
-    console.log(error.byteOffset); // 2
-    console.log(error.path); // [1]
-  }
+    if (error instanceof BsdIssue) {
+        console.log(error.schemaOffset); // 1
+        console.log(error.byteOffset); // 2
+        console.log(error.path); // [1]
+    }
 }
 ```

@@ -39,7 +39,7 @@ export class BsdType<T> implements Bsd<T> {
     constructor(
         private readonly decoder: BsdDecode<any>,
         private readonly modifiers: readonly BsdMod<any, any>[] = [],
-    ) { }
+    ) {}
 
     /**
      * @internal

@@ -2,7 +2,7 @@ import type { BsdAny, BsdCheck, BsdInfer, BsdMod } from "./bsd";
 import { BSD_READ } from "./constants";
 import type { BsdReader } from "./reader";
 
-export function reserve() { }
+export function reserve() {}
 
 export function peek<T>(value: T, reader: BsdReader): T {
     reader.byteOffset = reader.schemaOffset;
@@ -17,7 +17,9 @@ export function pad<T>(bytes: number | BsdMod<T, number>) {
     return (value: T, reader: BsdReader): T => {
         const n = typeof bytes === "function" ? bytes(value, reader) : bytes;
         if (n > reader.remaining) {
-            throw reader.fail(`pad(${n}) bytes exceeds remaining ${reader.remaining}`);
+            throw reader.fail(
+                `pad(${n}) bytes exceeds remaining ${reader.remaining}`,
+            );
         }
         reader.byteOffset += n;
         return value;

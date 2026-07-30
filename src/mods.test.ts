@@ -111,7 +111,7 @@ describe(check, () => {
 
     it("accepts undefined", () => {
         const input = Uint8Array.of(7);
-        const schema = u8().check(() => { });
+        const schema = u8().check(() => {});
         const result = schema.decode(input);
 
         expect(result).toBe(7);

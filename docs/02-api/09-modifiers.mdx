@@ -2,7 +2,7 @@
 title: Modifiers
 description: Validate, transform, compose, and control cursor behavior after decoding.
 sidebar:
-  icon: workflow
+    icon: workflow
 ---
 
 Modifiers derive a schema from another schema. They execute after the base
@@ -34,10 +34,10 @@ offset. Use it to interpret the same bytes more than once.
 
 ```ts
 const PackedId = struct({
-  key: u32()
-    .peek()
-    .transform((n) => n & 0x00ffffff),
-  mod: u32().transform((n) => n >>> 24),
+    key: u32()
+        .peek()
+        .transform((n) => n & 0x00ffffff),
+    mod: u32().transform((n) => n >>> 24),
 });
 ```
 
@@ -65,8 +65,8 @@ const FixedEntry = u16().pad(2);
 
 ```ts Dynamic
 const Text = bytes(u8())
-  .pad((b) => (4 - (b.length % 4)) % 4)
-  .utf8();
+    .pad((b) => (4 - (b.length % 4)) % 4)
+    .utf8();
 ```
 
 </CodeGroup>
@@ -78,7 +78,7 @@ const Text = bytes(u8())
 
 ```ts
 const Version = u8().check((value, reader) => {
-  if (value !== 2) throw reader.fail(`unsupported version: ${value}`);
+    if (value !== 2) throw reader.fail(`unsupported version: ${value}`);
 });
 ```
 
@@ -103,8 +103,8 @@ const Opcode = u16().in(new Set([0x1001, 0x1002]));
 const DurationSeconds = u32().transform((milliseconds) => milliseconds / 1000);
 
 const Flags = u8().transform((bits) => ({
-  visible: (bits & 0x01) !== 0,
-  locked: (bits & 0x02) !== 0,
+    visible: (bits & 0x01) !== 0,
+    locked: (bits & 0x02) !== 0,
 }));
 ```
 
@@ -124,9 +124,9 @@ The length is consumed but omitted from the result.
 
 ```ts
 const Value = u8().pipe((tag) => {
-  if (tag === 1) return u16();
-  if (tag === 2) return u32();
-  return bytes(4);
+    if (tag === 1) return u16();
+    if (tag === 2) return u32();
+    return bytes(4);
 });
 ```
 

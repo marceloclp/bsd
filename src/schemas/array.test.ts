@@ -1,9 +1,10 @@
 import { describe, expect, it } from "bun:test";
+
+import { BSD_LENGTH } from "../constants";
 import { BsdIssue } from "../reader";
 import { array, repeat } from "./array";
 import { bytes } from "./bytes";
 import { u8, u16 } from "./number";
-import { BSD_LENGTH } from "../constants";
 
 describe(array, () => {
     it("decodes an empty array", () => {

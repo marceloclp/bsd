@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+
 import { BsdIssue } from "../reader";
 import { bytes } from "./bytes";
 import { custom, find, literal, offset, padded } from "./common";
@@ -54,7 +55,11 @@ describe(literal, () => {
 describe(offset, () => {
     it("emits the absolute cursor without consuming input", () => {
         const input = Uint8Array.of(1, 0x34, 0x12);
-        const schema = struct({ first: u8(), startsAt: offset(), second: u16() });
+        const schema = struct({
+            first: u8(),
+            startsAt: offset(),
+            second: u16(),
+        });
         const result = schema.decode(input);
 
         expect(result).toEqual({
@@ -90,7 +95,7 @@ describe(find, () => {
     });
 
     it("propagates predicate errors", () => {
-        class PredicateError extends Error { }
+        class PredicateError extends Error {}
 
         const input = Uint8Array.of(1, 2);
         const schema = find(u8(), () => {

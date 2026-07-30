@@ -19,7 +19,9 @@ import { BSD_LENGTH, BSD_READ } from "../constants";
  * bytes(32).utf8();
  * ```
  */
-export function bytes(byteLength: number | BsdNumber<number>): BsdFor<Uint8Array> {
+export function bytes(
+    byteLength: number | BsdNumber<number>,
+): BsdFor<Uint8Array> {
     return BsdType.make((reader) => {
         let n: number;
         if (typeof byteLength === "number") {
@@ -48,7 +50,10 @@ export function bytes(byteLength: number | BsdNumber<number>): BsdFor<Uint8Array
  */
 export function remaining(offset = 0): BsdFor<Uint8Array> {
     return BsdType.make((reader) => {
-        if (reader.byteOffset + offset > reader.remaining || reader.byteOffset + offset < 0) {
+        if (
+            reader.byteOffset + offset > reader.remaining ||
+            reader.byteOffset + offset < 0
+        ) {
             throw reader.fail(`remaining(${offset}) out of bounds`);
         }
         return reader.bytes(reader.remaining + offset);

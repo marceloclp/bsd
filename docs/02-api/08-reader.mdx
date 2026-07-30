@@ -2,7 +2,7 @@
 title: Reader
 description: Read primitive values, control the cursor, and inspect decoding failures.
 sidebar:
-  icon: text-cursor
+    icon: text-cursor
 ---
 
 ## BsdReader
@@ -52,11 +52,11 @@ cursor advances after reading the value.
 
 ```ts
 const TaggedValue = custom((reader) => {
-  const tag = reader.uint(8, false);
+    const tag = reader.uint(8, false);
 
-  return tag === 1
-    ? { tag: reader.uint(8), value: reader.uint(16) }
-    : { tag: reader.uint(8), value: reader.uint(32) };
+    return tag === 1
+        ? { tag: reader.uint(8), value: reader.uint(16) }
+        : { tag: reader.uint(8), value: reader.uint(32) };
 });
 ```
 
@@ -76,14 +76,14 @@ subclass containing binary context.
 import { array, BsdIssue, u8 } from "@marceloclp/bsd";
 
 try {
-  array(3, u8().lte(10)).decode(Uint8Array.of(1, 99, 3));
+    array(3, u8().lte(10)).decode(Uint8Array.of(1, 99, 3));
 } catch (error) {
-  if (error instanceof BsdIssue) {
-    console.log(error.message); // expected 99 to be less than or equal to 10
-    console.log(error.schemaOffset); // 1
-    console.log(error.byteOffset); // 2
-    console.log(error.path); // [1]
-  }
+    if (error instanceof BsdIssue) {
+        console.log(error.message); // expected 99 to be less than or equal to 10
+        console.log(error.schemaOffset); // 1
+        console.log(error.byteOffset); // 2
+        console.log(error.path); // [1]
+    }
 }
 ```
 
@@ -92,6 +92,6 @@ returns the error; throw it explicitly.
 
 ```ts
 const Version = u8().check((value, reader) => {
-  if (value !== 2) throw reader.fail(`unsupported version: ${value}`);
+    if (value !== 2) throw reader.fail(`unsupported version: ${value}`);
 });
 ```

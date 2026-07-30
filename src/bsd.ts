@@ -17,10 +17,10 @@ export type BsdShape = Record<string, any>;
 export type BsdFor<T> = [T] extends [number | bigint]
     ? BsdNumber<Extract<T, number | bigint>>
     : [T] extends [Uint8Array]
-    ? BsdBytes
-    : [T] extends [BsdShape]
-    ? BsdStruct<{ -readonly [K in keyof T]: BsdInfer<T[K]> }>
-    : Bsd<T>;
+      ? BsdBytes
+      : [T] extends [BsdShape]
+        ? BsdStruct<{ -readonly [K in keyof T]: BsdInfer<T[K]> }>
+        : Bsd<T>;
 
 /** Resolves a `Bsd` inner type. */
 export type BsdInfer<T> = T extends Bsd<infer U> ? U : T;

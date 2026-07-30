@@ -2,7 +2,7 @@
 title: Arrays
 description: Decode fixed-count, prefixed, and frame-bounded sequences.
 sidebar:
-  icon: list
+    icon: list
 ---
 
 | Constructor            | Termination                     |
@@ -67,14 +67,14 @@ strings' frame first, before using `repeat()`:
 
 ```ts
 const NullTerminatedString = find(u16(), (v) => v < 0x20)
-  .pipe((o, r) => bytes(o - r.byteOffset))
-  .utf16()
-  .pad(2);
+    .pipe((o, r) => bytes(o - r.byteOffset))
+    .utf16()
+    .pad(2);
 
 const Data = struct({
-  id: u32(),
-  strings: bytes(u32()).frame(repeat(NullTerminatedString)),
-  version: u32(),
+    id: u32(),
+    strings: bytes(u32()).frame(repeat(NullTerminatedString)),
+    version: u32(),
 });
 ```
 

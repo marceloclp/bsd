@@ -2,7 +2,7 @@
 title: Bytes
 description: Decode byte ranges, text, frames, and residual input.
 sidebar:
-  icon: binary
+    icon: binary
 ---
 
 `bytes(length)` consumes `length` bytes and returns a `Uint8Array`.
@@ -47,9 +47,9 @@ const ReservedFooter = bytes(12).reserved();
 import { bytes, struct, u8, u32 } from "@marceloclp/bsd";
 
 const Labels = struct({
-  code: bytes(4).ascii(),
-  name: bytes(u8()).utf8(),
-  title: bytes(u32().transform((n) => n * 2)).utf16(),
+    code: bytes(4).ascii(),
+    name: bytes(u8()).utf8(),
+    title: bytes(u32().transform((n) => n * 2)).utf16(),
 });
 ```
 
@@ -58,9 +58,9 @@ Lengths are byte counts. Transform character counts before passing them to
 
 ```ts
 const PaddedText = bytes(
-  u32()
-    .pad(4)
-    .transform((characters) => characters * 2),
+    u32()
+        .pad(4)
+        .transform((characters) => characters * 2),
 ).utf16();
 ```
 
@@ -84,9 +84,9 @@ preserving a suffix.
 import { remaining, struct, u16 } from "@marceloclp/bsd";
 
 const Packet = struct({
-  type: u16(),
-  payload: remaining(4),
-  checksum: bytes(4),
+    type: u16(),
+    payload: remaining(4),
+    checksum: bytes(4),
 });
 ```
 

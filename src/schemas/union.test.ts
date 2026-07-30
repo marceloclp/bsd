@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+
 import { BsdIssue } from "../reader";
 import { bytes } from "./bytes";
 import { literal } from "./common";
@@ -38,8 +39,14 @@ describe(union, () => {
         const Short = struct({ type: literal("short"), value: u8() });
 
         const input = Uint8Array.of(0x34, 0x12);
-        expect(union(Long, Short).decode(input)).toEqual({ type: "long", value: 0x1234 });
-        expect(union(Short, Long).decode(input)).toEqual({ type: "short", value: 0x34 });
+        expect(union(Long, Short).decode(input)).toEqual({
+            type: "long",
+            value: 0x1234,
+        });
+        expect(union(Short, Long).decode(input)).toEqual({
+            type: "short",
+            value: 0x34,
+        });
     });
 
     it("restores nested path state between branches", () => {

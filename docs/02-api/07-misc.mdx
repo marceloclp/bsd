@@ -2,7 +2,7 @@
 title: Misc
 description: Define constants, inspect offsets, scan input, skip padding, and implement custom schemas.
 sidebar:
-  icon: ellipsis
+    icon: ellipsis
 ---
 
 These constructors cover cursor control, lookahead, and
@@ -37,8 +37,8 @@ returns the offset after the last successful non-match.
 
 ```ts
 const NullTerminatedUtf16Text = find(u16(), (v) => v === 0)
-  .pipe((o, r) => bytes(o - r.byteOffset).utf16())
-  .pad(2);
+    .pipe((o, r) => bytes(o - r.byteOffset).utf16())
+    .pad(2);
 ```
 
 ## `padded()`
@@ -55,8 +55,8 @@ The record consumes a 16-bit tag, two padding bytes, then a 32-bit value.
 
 ```ts
 const AlignedRecord = struct({
-  tag: u16(),
-  value: padded(2, u32()),
+    tag: u16(),
+    value: padded(2, u32()),
 });
 ```
 
@@ -68,13 +68,13 @@ must preserve path state when it decodes nested values.
 
 ```ts
 const CString = custom((reader) => {
-  const start = reader.byteOffset;
-  let end = start;
+    const start = reader.byteOffset;
+    let end = start;
 
-  while (end < reader.limit && reader.buffer[end] !== 0) end++;
-  if (end === reader.limit) throw reader.fail("unterminated C string");
+    while (end < reader.limit && reader.buffer[end] !== 0) end++;
+    if (end === reader.limit) throw reader.fail("unterminated C string");
 
-  reader.byteOffset = end + 1;
-  return new TextDecoder().decode(reader.buffer.subarray(start, end));
+    reader.byteOffset = end + 1;
+    return new TextDecoder().decode(reader.buffer.subarray(start, end));
 });
 ```
