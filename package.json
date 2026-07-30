@@ -3,21 +3,33 @@
     "version": "0.1.0",
     "description": "Type-safe, composable binary decoding for TypeScript.",
     "files": [
-        "dist",
-        "README.md",
-        "docs"
+        "dist"
     ],
     "type": "module",
-    "main": "src/index.ts",
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "default": "./dist/index.js"
+        },
+        "./package.json": "./package.json"
+    },
     "publishConfig": {
         "access": "public"
     },
     "scripts": {
-        "build": "rm -rf dist && bun build ./index.ts --outdir ./dist --target browser --format esm --sourcemap=external && tsc -p tsconfig.build.json && tsc -p tsconfig.package-smoke.json && bun run ./scripts/package-smoke.ts",
+        "clean": "rm -rf dist",
+        "build:js": "bun build ./src/index.ts --outdir ./dist --entry-naming [name].js --target browser --format esm --sourcemap=external",
+        "build:types": "tsc -p tsconfig.build.json",
+        "build": "bun run clean && bun run build:js && bun run build:types",
+        "verify:package": "bun run build && bun run ./scripts/package-smoke.ts",
         "test": "bun test",
         "typecheck": "tsc --noEmit",
         "prepack": "bun run build",
-        "prepublishOnly": "bun run typecheck && bun test",
+        "prepublishOnly": "bun run typecheck && bun test && bun run verify:package",
         "bench:reader": "bun run bench/reader.bench.ts",
         "docs:dev": "bun --bun blume dev",
         "docs:build": "bun --bun blume build --isolated",

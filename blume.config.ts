@@ -3,6 +3,7 @@ import { defineConfig } from "blume";
 export default defineConfig({
     title: "BSD",
     description: "Decode binary data with readable, composable TypeScript schemas.",
+    logo: "/favicon.svg",
     content: {
         root: "docs",
     },
